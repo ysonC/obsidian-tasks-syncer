@@ -24,7 +24,10 @@
 	},
 	"dependencies": {
 		"@azure/msal-node": "^3.2.3",
+		"@electron/remote": "^2.1.2",
 		"dotenv": "^16.4.7",
-		"express": "^4.21.2"
+		"electron": "^34.2.0",
+		"express": "^4.21.2",
+		"node-fetch": "^3.3.2"
 	}
 }
