@@ -5,7 +5,7 @@ import * as path from "path";
 import * as dotenv from "dotenv";
 import { BrowserWindow } from "@electron/remote";
 
-// Load environment variables at the very top
+// Load environment variables at the very top.
 dotenv.config();
 
 // Constants for OAuth flow
@@ -14,19 +14,23 @@ const CLIENT_SECRET: string = process.env.CLIENT_SECRET ?? "";
 const AUTHORITY = "https://login.microsoftonline.com/consumers";
 const REDIRECT_URI = "http://localhost:5000"; // Must match your Azure registration
 const SCOPES = ["Tasks.ReadWrite", "offline_access"];
-const TOKEN_ENDPOINT = "https://login.microsoftonline.com/consumers/oauth2/v2.0/token";
 
 export default class MyTodoPlugin extends Plugin {
 	private tokenFilePath: string;
 	private pluginDir: string;
 	private pca: ConfidentialClientApplication;
 
-	async onload() {
+	// onload is called when the plugin is activated.
+	async onload(): Promise<void> {
 		this.initializePlugin();
 
-		this.tokenFilePath = path.join("/home/yson/projects/sync-obsidian-todo-plugin/my-todo-plugin", "token_cache.json");
+		// Set the token file path (adjust as needed)
+		this.tokenFilePath = path.join(
+			"/home/yson/projects/sync-obsidian-todo-plugin/my-todo-plugin",
+			"token_cache.json"
+		);
 
-		// If a token cache file exists, load it into MSAL's cache
+		// If a token cache file exists, load it into MSAL's token cache.
 		if (fs.existsSync(this.tokenFilePath)) {
 			const cacheData = fs.readFileSync(this.tokenFilePath, "utf8");
 			this.pca.getTokenCache().deserialize(cacheData);
@@ -35,12 +39,13 @@ export default class MyTodoPlugin extends Plugin {
 		console.log("Current Token Cache:", this.pca.getTokenCache().serialize());
 	}
 
-	initializePlugin() {
-		// Determine the plugin directory inside Obsidian's .obsidian/plugins/ folder
+	// initializePlugin sets up directories, loads environment settings, builds the MSAL client, and registers commands.
+	initializePlugin(): void {
+		// Determine the plugin directory inside Obsidian's .obsidian/plugins/ folder.
 		this.pluginDir = path.join(this.app.vault.configDir, "plugins/my-todo-plugin");
 		console.log("Plugin directory:", this.pluginDir);
 
-		// Load development .env file (if exists)
+		// Load a development .env file if it exists.
 		const devEnvPath = "/home/yson/projects/sync-obsidian-todo-plugin/my-todo-plugin/.env";
 		if (fs.existsSync(devEnvPath)) {
 			dotenv.config({ path: devEnvPath });
@@ -52,7 +57,7 @@ export default class MyTodoPlugin extends Plugin {
 		console.log("Client ID:", CLIENT_ID);
 		console.log("Client Secret:", CLIENT_SECRET);
 
-		// Build the MSAL configuration
+		// Build the MSAL configuration.
 		const config: Configuration = {
 			auth: {
 				clientId: CLIENT_ID,
@@ -62,10 +67,10 @@ export default class MyTodoPlugin extends Plugin {
 		};
 		console.log("MSAL Configuration:", config);
 
-		// Initialize the ConfidentialClientApplication instance
+		// Initialize the ConfidentialClientApplication instance.
 		this.pca = new ConfidentialClientApplication(config);
 
-		// Register interactive login command
+		// Register the interactive login command.
 		this.addCommand({
 			id: "login-microsoft-todo",
 			name: "Login to Microsoft To-Do (Interactive)",
@@ -81,7 +86,7 @@ export default class MyTodoPlugin extends Plugin {
 			},
 		});
 
-		// Register command to refresh token using MSAL's acquireTokenByRefreshToken
+		// Register the command to refresh token using MSAL's acquireTokenByRefreshToken.
 		this.addCommand({
 			id: "refresh-microsoft-todo-token",
 			name: "Refresh Microsoft To-Do Token",
@@ -97,7 +102,7 @@ export default class MyTodoPlugin extends Plugin {
 			},
 		});
 
-		// Register new command to get the task list
+		// Register the command to get the task lists.
 		this.addCommand({
 			id: "get-microsoft-todo-task-lists",
 			name: "Get Microsoft To-Do Task Lists",
@@ -110,28 +115,32 @@ export default class MyTodoPlugin extends Plugin {
 				}
 			},
 		});
+
 		new Notice("Microsoft To-Do Plugin Loaded!");
 	}
 
-	/**
-	 * Interactive login:
-	 * - Opens a BrowserWindow for Microsoft login.
-	 * - Exchanges the auth code for tokens.
-	 * - Saves only the token cache (which includes the refresh token and account) to disk.
-	 */
+	// Helper method to save the MSAL token cache to disk.
+	private saveTokenCache(): void {
+		const tokenCacheSerialized = this.pca.getTokenCache().serialize();
+		fs.writeFileSync(this.tokenFilePath, tokenCacheSerialized);
+		console.log("Token cache saved to:", this.tokenFilePath);
+	}
+
+	// Interactive login method:
+	// - Opens a BrowserWindow to allow the user to log in.
+	// - Exchanges the authorization code for tokens.
+	// - Saves only the serialized token cache (which contains the refresh token and account info).
 	async getAccessToken(): Promise<{ accessToken: string }> {
 		return new Promise((resolve, reject) => {
-			// Construct the authorization URL
-			const authUrl = `${AUTHORITY}/oauth2/v2.0/authorize?client_id=${CLIENT_ID}`
-				+ `&response_type=code`
-				+ `&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`
-				+ `&response_mode=query`
-				+ `&scope=${encodeURIComponent(SCOPES.join(" "))}`
-				+ `&prompt=consent`;
+			const authUrl = `${AUTHORITY}/oauth2/v2.0/authorize?client_id=${CLIENT_ID}` +
+				`&response_type=code` +
+				`&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
+				`&response_mode=query` +
+				`&scope=${encodeURIComponent(SCOPES.join(" "))}` +
+				`&prompt=consent`;
 
 			console.log("Authorization URL:", authUrl);
 
-			// Open a BrowserWindow for Microsoft login
 			const authWindow = new BrowserWindow({
 				width: 600,
 				height: 700,
@@ -143,13 +152,12 @@ export default class MyTodoPlugin extends Plugin {
 			authWindow.loadURL(authUrl);
 			console.log("Opened auth window with URL:", authUrl);
 
-			// Listen for redirection to capture the auth code
 			authWindow.webContents.on("will-redirect", async (event, url) => {
 				console.log("Will redirect to:", url);
 				try {
 					const redirectURL = new URL(url);
-					const authCode = redirectURL.searchParams.get('code');
-					const error = redirectURL.searchParams.get('error');
+					const authCode = redirectURL.searchParams.get("code");
+					const error = redirectURL.searchParams.get("error");
 					if (error) {
 						throw new Error("OAuth error: " + error);
 					}
@@ -158,7 +166,7 @@ export default class MyTodoPlugin extends Plugin {
 						event.preventDefault();
 						authWindow.close();
 
-						// Exchange the auth code for tokens using MSAL
+						// Exchange the auth code for tokens.
 						const tokenRequest = {
 							code: authCode,
 							scopes: SCOPES,
@@ -170,14 +178,9 @@ export default class MyTodoPlugin extends Plugin {
 						}
 						console.log("Token response:", tokenResponse);
 
-						// Instead of saving the full token response, we only save the serialized token cache.
-						const tokenCacheSerialized = this.pca.getTokenCache().serialize();
-						fs.writeFileSync(this.tokenFilePath, tokenCacheSerialized);
-						console.log("Token cache saved to:", this.tokenFilePath);
-
-						resolve({
-							accessToken: tokenResponse.accessToken,
-						});
+						// Save the token cache (containing the refresh token & account info).
+						this.saveTokenCache();
+						resolve({ accessToken: tokenResponse.accessToken });
 					}
 				} catch (err) {
 					console.error("Error during token exchange:", err);
@@ -188,20 +191,17 @@ export default class MyTodoPlugin extends Plugin {
 		});
 	}
 
-	/**
-	 * Refreshes tokens using MSAL's acquireTokenByRefreshToken.
-	 * It loads the token cache, extracts the refresh token, and uses it to obtain new tokens.
-	 */
+	// Refresh tokens using MSAL's acquireTokenByRefreshToken.
+	// Loads the token cache, extracts the refresh token, and uses it to obtain new tokens.
 	async refreshAccessTokenWithPCA(): Promise<{ accessToken: string }> {
-		// Ensure the token cache file exists
 		if (!fs.existsSync(this.tokenFilePath)) {
 			throw new Error("No token cache found. Please login first.");
 		}
-		// Deserialize the token cache into MSAL
+
 		const cacheData = fs.readFileSync(this.tokenFilePath, "utf8");
 		this.pca.getTokenCache().deserialize(cacheData);
 
-		// Extract the refresh token from the token cache
+		// Extract the refresh token from the token cache.
 		const tokenCacheSerialized = this.pca.getTokenCache().serialize();
 		const parsedCache = JSON.parse(tokenCacheSerialized);
 		if (!parsedCache.RefreshToken) {
@@ -212,7 +212,6 @@ export default class MyTodoPlugin extends Plugin {
 		const refreshToken = refreshTokenObject[refreshTokenKey].secret;
 		console.log("Extracted Refresh Token:", refreshToken);
 
-		// Build the token request for refresh
 		const tokenRequest = {
 			refreshToken: refreshToken,
 			scopes: SCOPES,
@@ -220,40 +219,28 @@ export default class MyTodoPlugin extends Plugin {
 		};
 
 		try {
-			// Use MSAL's acquireTokenByRefreshToken method
 			const tokenResponse = await this.pca.acquireTokenByRefreshToken(tokenRequest);
 			if (!tokenResponse) {
 				throw new Error("No token response received from refresh.");
 			}
 			console.log("Token response from refresh:", tokenResponse);
-
-			// Save the updated token cache to file
-			const updatedCache = this.pca.getTokenCache().serialize();
-			fs.writeFileSync(this.tokenFilePath, updatedCache);
-			console.log("Updated token cache saved to:", this.tokenFilePath);
-
-			return {
-				accessToken: tokenResponse.accessToken,
-			};
+			// Save updated token cache.
+			this.saveTokenCache();
+			return { accessToken: tokenResponse.accessToken };
 		} catch (error) {
 			console.error("Error in acquireTokenByRefreshToken:", error);
 			throw error;
 		}
 	}
-	/**
-	 * Gets the user's Microsoft To-Do task lists.
-	 * - Refreshes or acquires a valid access token.
-	 * - Calls the Microsoft Graph API to fetch task lists.
-	 * - Displays the task list names.
-	 */
+
+	// Command to get Microsoft To-Do task lists.
+	// Refreshes the access token and then calls the Microsoft Graph API.
 	async getTaskLists(): Promise<void> {
 		try {
-			// Refresh the access token using our refresh function
 			const tokenData = await this.refreshAccessTokenWithPCA();
 			const accessToken = tokenData.accessToken;
 			console.log("Using Access Token:", accessToken);
 
-			// Call Microsoft Graph to get the task lists
 			const response = await requestUrl({
 				url: "https://graph.microsoft.com/v1.0/me/todo/lists",
 				method: "GET",
