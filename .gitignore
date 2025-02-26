@@ -2,3 +2,4 @@
 .env
 token_data.json
 my-todo-plugin/auth_token.json
+my-todo-plugin/token_cache.json
