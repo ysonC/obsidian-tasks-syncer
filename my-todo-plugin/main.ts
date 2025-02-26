@@ -99,19 +99,21 @@ export default class MyTodoPlugin extends Plugin {
 			authWindow.loadURL(authUrl);
 			console.log("Opened auth window");
 
-			// 3. Intercept the redirect to our redirect URI
+			// 3. Intercept the redirect to our redirect URI to get the auth code
 			authWindow.webContents.on("will-redirect", (event, url) => {
 				console.log("Will redirect to: ", url);
 				try {
 					const redirectURL = new URL(url);
 					const authCode = redirectURL.searchParams.get('code');
 					console.log("Auth code: ", authCode);
+					if (authCode) {
+						authWindow.close();
+					}
 				} catch (err) {
 					console.error("Error in will-redirect event: ", err);
+					reject(err);
 				}
-				authWindow.close();
 			});
-
 		});
 	}
 }
