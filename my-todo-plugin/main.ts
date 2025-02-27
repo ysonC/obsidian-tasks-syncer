@@ -3,6 +3,7 @@ import { ConfidentialClientApplication, Configuration } from "@azure/msal-node";
 import * as fs from "fs";
 import * as dotenv from "dotenv";
 import { BrowserWindow } from "@electron/remote";
+import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "setting";
 
 // Load a development .env file if it exists.
 const devEnvPath = "/home/yson/projects/sync-obsidian-todo-plugin/my-todo-plugin/.env";
@@ -21,6 +22,7 @@ const SCOPES = ["Tasks.ReadWrite", "offline_access"];
 export default class MyTodoPlugin extends Plugin {
 	private tokenFilePath: string;
 	private pca: ConfidentialClientApplication;
+	settings: MyTodoSettings;
 
 	// onload is called when the plugin is activated.
 	async onload(): Promise<void> {
@@ -33,6 +35,13 @@ export default class MyTodoPlugin extends Plugin {
 			console.log("Token cache loaded from file.");
 		}
 		console.log("Current Token Cache:", this.pca.getTokenCache().serialize());
+
+		// Load the available task lists.
+		await this.loadSettings();
+		await this.loadAvailableTaskLists();
+		await this.saveSettings();
+		this.addSettingTab(new MyTodoSettingTab(this.app, this));
+		new Notice("Microsoft To-Do Plugin Loaded!");
 	}
 
 	// initializePlugin sets up directories, loads environment settings, builds the MSAL client, and registers commands.
@@ -48,10 +57,10 @@ export default class MyTodoPlugin extends Plugin {
 				clientSecret: CLIENT_SECRET,
 			},
 		};
-		console.log("MSAL Configuration:", config);
-
 		// Initialize the ConfidentialClientApplication instance.
 		this.pca = new ConfidentialClientApplication(config);
+		console.log("MSAL Configuration:", config);
+
 
 		// Register the interactive login command.
 		this.addCommand({
@@ -98,7 +107,7 @@ export default class MyTodoPlugin extends Plugin {
 				}
 			},
 		});
-		
+
 		this.addRibbonIcon("dice", "Get Microsoft To-Do Task Lists", async () => {
 			try {
 				await this.getTaskLists();
@@ -111,6 +120,51 @@ export default class MyTodoPlugin extends Plugin {
 
 		new Notice("Microsoft To-Do Plugin Loaded!");
 	}
+
+	// loadSettings loads the plugin settings from the Obsidian vault.
+	async loadSettings(): Promise<void> {
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+	}
+
+	// saveSettings saves the plugin settings to the Obsidian vault.
+	async saveSettings(): Promise<void> {
+		await this.saveData(this.settings);
+	}
+
+	// loadAvailableTaskLists fetches the available task lists from Microsoft To-Do.
+	async loadAvailableTaskLists(): Promise<void> {
+		try {
+			// Refresh token (or acquire a new token) so we can call Microsoft Graph
+			const tokenData = await this.refreshAccessTokenWithPCA();
+			const accessToken = tokenData.accessToken;
+			console.log("Using Access Token:", accessToken);
+
+			const response = await requestUrl({
+				url: "https://graph.microsoft.com/v1.0/me/todo/lists",
+				method: "GET",
+				headers: { "Authorization": `Bearer ${accessToken}` },
+			});
+
+			if (response.status !== 200) {
+				throw new Error("Failed to fetch task lists: " + response.text);
+			}
+
+			const data = response.json;
+			if (data.value && Array.isArray(data.value)) {
+				// Map each list to an object with id and displayName.
+				this.settings.taskLists = data.value.map((list: any) => ({
+					id: list.id,
+					displayName: list.displayName,
+				}));
+				console.log("Fetched Task Lists:", this.settings.taskLists);
+			} else {
+				console.warn("No task lists found.");
+			}
+		} catch (err) {
+			console.error("Error loading task lists:", err);
+		}
+	}
+
 
 	// Helper method to save the MSAL token cache to disk.
 	private saveTokenCache(): void {
