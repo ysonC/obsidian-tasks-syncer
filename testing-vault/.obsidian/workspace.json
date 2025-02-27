@@ -11,10 +11,14 @@
             "id": "70ec6e4cefed1c19",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
+              "type": "markdown",
+              "state": {
+                "file": "test task.md",
+                "mode": "source",
+                "source": false
+              },
               "icon": "lucide-file",
-              "title": "New tab"
+              "title": "test task"
             }
           }
         ]
@@ -163,5 +167,7 @@
     }
   },
   "active": "70ec6e4cefed1c19",
-  "lastOpenFiles": []
+  "lastOpenFiles": [
+    "test task.md"
+  ]
 }

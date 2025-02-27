@@ -109,6 +109,35 @@ export default class MyTodoPlugin extends Plugin {
 			},
 		});
 
+		// Register command to fetch task from selected list.
+		this.addCommand({
+			id: "get-tasks-from-selected-list",
+			name: "Get Tasks from Selected List",
+			callback: async () => {
+				try {
+					await this.getTasksFromSelectedList();
+				} catch (error) {
+					console.error("Error fetching tasks from selected list:", error);
+					new Notice("❌ Failed to fetch tasks. Check the console for details.");
+				}
+			},
+		});
+
+		// Register command to sync task lists for the current note.
+		this.addCommand({
+			id: "sync-tasks-to-microsoft-todo",
+			name: "Sync Tasks to Microsoft To-Do",
+			callback: async () => {
+				try {
+					await this.syncTasksFromNote();
+				} catch (error) {
+					console.error("Error syncing tasks:", error);
+					new Notice("❌ Failed to sync tasks. Check the console for details.");
+				}
+			},
+		});
+
+
 		// Add a ribbon icon that fetches task lists.
 		this.addRibbonIcon("dice", "Get Microsoft To-Do Task Lists", async () => {
 			try {
@@ -311,6 +340,50 @@ export default class MyTodoPlugin extends Plugin {
 		}
 	}
 
+	async getTasksFromSelectedList(): Promise<void> {
+		// Ensure a task list is selected
+		if (!this.settings.selectedTaskListId) {
+			new Notice("⚠️ No task list selected. Please choose one in settings.");
+			return;
+		}
+
+		try {
+			// Get a fresh access token
+			const tokenData = await this.refreshAccessTokenWithPCA();
+			const accessToken = tokenData.accessToken;
+
+			// Microsoft Graph API request for tasks in the selected list
+			const response = await requestUrl({
+				url: `https://graph.microsoft.com/v1.0/me/todo/lists/${this.settings.selectedTaskListId}/tasks`,
+				method: "GET",
+				headers: { "Authorization": `Bearer ${accessToken}` },
+			});
+
+			if (response.status !== 200) {
+				throw new Error("Failed to fetch tasks: " + response.text);
+			}
+
+			// Parse and display tasks
+			const data = response.json;
+			const listName = this.settings.taskLists.find((l) => l.id === this.settings.selectedTaskListId)?.displayName;
+			let tasksText = `Tasks: ${listName}\n`;
+			if (data.value && data.value.length > 0) {
+				for (const task of data.value) {
+					tasksText += `- ${task.title} (Status: ${task.status})\n`;
+				}
+			} else {
+				tasksText += "No tasks found.";
+			}
+
+			new Notice(tasksText);
+			console.log("Fetched Tasks:", tasksText);
+		} catch (error) {
+			console.error("Error fetching tasks:", error);
+			new Notice("❌ Error fetching tasks. Check the console for details.");
+		}
+	}
+
+
 	// Synchronize task lists to setting
 	async syncTaskLists(): Promise<void> {
 		try {
@@ -323,5 +396,73 @@ export default class MyTodoPlugin extends Plugin {
 			new Notice("Failed to sync task lists. Check the console for details.");
 		}
 	}
+
+	async syncTasksFromNote(): Promise<void> {
+		// Ensure a task list is selected
+		if (!this.settings.selectedTaskListId) {
+			new Notice("⚠️ No task list selected. Please choose one in settings.");
+			return;
+		}
+
+		// Get the current active note
+		const activeFile = this.app.workspace.getActiveFile();
+		if (!activeFile) {
+			new Notice("⚠️ No active note found. Open a note with tasks.");
+			return;
+		}
+
+		// Read the content of the note and extract tasks
+		const fileContent = await this.app.vault.read(activeFile);
+		const taskRegex = /^- \[ \] (.+)$/gm;
+		const tasks: string[] = [];
+		let match;
+		while ((match = taskRegex.exec(fileContent)) !== null) {
+			tasks.push(match[1].trim()); // Extract only the task text
+		}
+		if (tasks.length === 0) {
+			new Notice("✅ No tasks found in this note.");
+			return;
+		}
+
+		try {
+			// Get a fresh access token
+			const tokenData = await this.refreshAccessTokenWithPCA();
+			const accessToken = tokenData.accessToken;
+
+			// Add each task to Microsoft To-Do
+			for (const task of tasks) {
+				await this.createTaskInMicrosoftToDo(accessToken, task);
+			}
+
+			new Notice(`✅ Synced ${tasks.length} tasks to Microsoft To-Do!`);
+			console.log(`Synced Tasks:`, tasks);
+		} catch (error) {
+			console.error("Error syncing tasks:", error);
+			new Notice("❌ Error syncing tasks. Check the console for details.");
+		}
+	}
+
+	// Create a task in Microsoft To-Do using the Graph API.
+	async createTaskInMicrosoftToDo(accessToken: string, taskTitle: string): Promise<void> {
+		const response = await requestUrl({
+			url: `https://graph.microsoft.com/v1.0/me/todo/lists/${this.settings.selectedTaskListId}/tasks`,
+			method: "POST",
+			headers: {
+				"Authorization": `Bearer ${accessToken}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				title: taskTitle,
+			}),
+		});
+
+		if (response.status !== 201) {
+			throw new Error(`Failed to create task: ${response.text}`);
+		}
+
+		console.log(`Task created: ${taskTitle}`);
+	}
+
+
 }
 
