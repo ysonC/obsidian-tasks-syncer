@@ -1,12 +1,15 @@
 import { Plugin, Notice, requestUrl } from "obsidian";
 import { ConfidentialClientApplication, Configuration } from "@azure/msal-node";
 import * as fs from "fs";
-import * as path from "path";
 import * as dotenv from "dotenv";
 import { BrowserWindow } from "@electron/remote";
 
-// Load environment variables at the very top.
-dotenv.config();
+// Load a development .env file if it exists.
+const devEnvPath = "/home/yson/projects/sync-obsidian-todo-plugin/my-todo-plugin/.env";
+dotenv.config({ path: devEnvPath, override: true });
+
+// Temp directory for storing token cache.
+const cachePath = "/home/yson/projects/sync-obsidian-todo-plugin/my-todo-plugin/";
 
 // Constants for OAuth flow
 const CLIENT_ID: string = process.env.CLIENT_ID ?? "";
@@ -17,19 +20,12 @@ const SCOPES = ["Tasks.ReadWrite", "offline_access"];
 
 export default class MyTodoPlugin extends Plugin {
 	private tokenFilePath: string;
-	private pluginDir: string;
 	private pca: ConfidentialClientApplication;
 
 	// onload is called when the plugin is activated.
 	async onload(): Promise<void> {
 		this.initializePlugin();
-
-		// Set the token file path (adjust as needed)
-		this.tokenFilePath = path.join(
-			"/home/yson/projects/sync-obsidian-todo-plugin/my-todo-plugin",
-			"token_cache.json"
-		);
-
+		this.tokenFilePath = `${cachePath}/token_cache.json`;
 		// If a token cache file exists, load it into MSAL's token cache.
 		if (fs.existsSync(this.tokenFilePath)) {
 			const cacheData = fs.readFileSync(this.tokenFilePath, "utf8");
@@ -41,19 +37,6 @@ export default class MyTodoPlugin extends Plugin {
 
 	// initializePlugin sets up directories, loads environment settings, builds the MSAL client, and registers commands.
 	initializePlugin(): void {
-		// Determine the plugin directory inside Obsidian's .obsidian/plugins/ folder.
-		this.pluginDir = path.join(this.app.vault.configDir, "plugins/my-todo-plugin");
-		console.log("Plugin directory:", this.pluginDir);
-
-		// Load a development .env file if it exists.
-		const devEnvPath = "/home/yson/projects/sync-obsidian-todo-plugin/my-todo-plugin/.env";
-		if (fs.existsSync(devEnvPath)) {
-			dotenv.config({ path: devEnvPath });
-			console.log("Loaded environment variables from:", devEnvPath);
-		} else {
-			console.warn("Environment file not found at:", devEnvPath);
-		}
-
 		console.log("Client ID:", CLIENT_ID);
 		console.log("Client Secret:", CLIENT_SECRET);
 
@@ -115,6 +98,16 @@ export default class MyTodoPlugin extends Plugin {
 				}
 			},
 		});
+		
+		this.addRibbonIcon("dice", "Get Microsoft To-Do Task Lists", async () => {
+			try {
+				await this.getTaskLists();
+				new Notice("Task lists fetched successfully!");
+			} catch (error) {
+				console.error("Error fetching task lists:", error);
+				new Notice("❌ Failed to fetch task lists. Check the console for details.");
+			}
+		});
 
 		new Notice("Microsoft To-Do Plugin Loaded!");
 	}
@@ -149,6 +142,19 @@ export default class MyTodoPlugin extends Plugin {
 					contextIsolation: true,
 				}
 			});
+
+			// Clear cookies before loading the URL
+			//authWindow.webContents.session.clearStorageData({ storages: ["cookies"] })
+			//	.then(() => {
+			//		console.log("Cookies cleared");
+			//		authWindow.loadURL(authUrl);
+			//	})
+			//	.catch((err) => {
+			//		console.error("Error clearing cookies:", err);
+			//		authWindow.loadURL(authUrl);
+			//	});
+
+			// Load the auth URL in the BrowserWindow.
 			authWindow.loadURL(authUrl);
 			console.log("Opened auth window with URL:", authUrl);
 
