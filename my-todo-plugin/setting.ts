@@ -27,6 +27,20 @@ export class MyTodoSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		containerEl.createEl("h2", { text: "Microsoft To‑Do Settings" });
 
+		// Add a sync button to update the task lists.
+		new Setting(containerEl)
+			.setName("Sync Task Lists")
+			.setDesc("Fetch the latest task lists from Microsoft To‑Do.")
+			.addButton((btn) => {
+				btn.setButtonText("Sync")
+					.onClick(async () => {
+						await this.plugin.syncTaskLists();
+						// Optionally, refresh the UI by re-rendering the settings tab.
+						this.display();
+					});
+			});
+		
+		// Add a dropdown to select the task
 		new Setting(containerEl)
 			.setName("Task List")
 			.setDesc("Select the Microsoft To‑Do list to store your Obsidian tasks.")
