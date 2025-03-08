@@ -485,11 +485,12 @@ export default class MyTodoPlugin extends Plugin {
 	  // Regex to match both undone (- [ ]) and done (- [x]) tasks, allowing optional leading spaces.
 	  const taskRegex = /^\s*-\s*\[( |x)\]\s+(.*)$/gm;
 
-	  // Loop through every file except the consolidated note.
+	  // Loop through every file in the vault.
 	  for (const file of markdownFiles) {
 		const content = await this.app.vault.read(file);
 		let match;
 		while ((match = taskRegex.exec(content)) !== null) {
+			console.log("Match:", match);
 		  // match[1] is either " " (undone) or "x" (done)
 		  // match[2] is the task text
 		  const currentState = match[1] === "x" ? "[x]" : "[ ]";
@@ -521,7 +522,7 @@ export default class MyTodoPlugin extends Plugin {
 		await this.app.vault.modify(targetFile, newContent);
 		new Notice("Tasks List updated successfully!");
 	  } else {
-		new Notice("Error: Consolidated Tasks note is not a file.");
+		new Notice("Error: Tasks note is not a file.");
 	  }
 	}
 }
