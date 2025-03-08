@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
-import MyTodoPlugin from "./main"; // Adjust the path as needed
+import TaskSyncerPlugin from "./main"; // Adjust the path as needed
 
 export interface MyTodoSettings {
 	selectedTaskListId: string;
@@ -13,10 +13,10 @@ export const DEFAULT_SETTINGS: MyTodoSettings = {
 };
 
 export class MyTodoSettingTab extends PluginSettingTab {
-	plugin: MyTodoPlugin;
+	plugin: TaskSyncerPlugin;
 	settings: MyTodoSettings;
 
-	constructor(app: App, plugin: MyTodoPlugin) {
+	constructor(app: App, plugin: TaskSyncerPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 		this.settings = plugin.settings;

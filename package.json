@@ -1,5 +1,5 @@
 {
-	"name": "obsidian-sample-plugin",
+	"name": "task-syncer-plugin",
 	"version": "1.0.0",
 	"description": "This is a sample plugin for Obsidian (https://obsidian.md)",
 	"main": "main.js",
@@ -9,7 +9,7 @@
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [],
-	"author": "",
+	"author": "Wyson Cheng",
 	"license": "MIT",
 	"devDependencies": {
 		"@types/express": "^5.0.0",
@@ -26,8 +26,6 @@
 		"@azure/msal-node": "^3.2.3",
 		"@electron/remote": "^2.1.2",
 		"dotenv": "^16.4.7",
-		"electron": "^34.2.0",
-		"express": "^4.21.2",
-		"node-fetch": "^3.3.2"
+		"electron": "^34.2.0"
 	}
 }
