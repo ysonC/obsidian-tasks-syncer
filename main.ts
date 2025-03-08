@@ -6,12 +6,8 @@ import { BrowserWindow } from "@electron/remote";
 import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "setting";
 import * as path from "path";
 
-// Load the development .env file with override enabled.
-const devEnvPath = "/home/yson/projects/sync-obsidian-todo-plugin/my-todo-plugin/.env";
-dotenv.config({ path: devEnvPath, override: true });
 
 // Define the cache directory and OAuth constants.
-const cachePath = "/home/yson/projects/sync-obsidian-todo-plugin/my-todo-plugin/";
 const CLIENT_ID: string = process.env.CLIENT_ID ?? "";
 const CLIENT_SECRET: string = process.env.CLIENT_SECRET ?? "";
 const AUTHORITY = "https://login.microsoftonline.com/consumers";
@@ -37,7 +33,7 @@ export default class MyTodoPlugin extends Plugin {
 		this.initializePlugin();
 
 		// 3. Set up the token cache.
-		this.tokenFilePath = `${cachePath}/token_cache.json`;
+		this.tokenFilePath = `${pluginPath}/token_cache.json`;
 		if (fs.existsSync(this.tokenFilePath)) {
 			const cacheData = fs.readFileSync(this.tokenFilePath, "utf8");
 			this.pca.getTokenCache().deserialize(cacheData);
@@ -180,38 +176,18 @@ export default class MyTodoPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	// Fetches available Microsoft To-Do task lists and stores them in settings.
-	async loadAvailableTaskLists(): Promise<void> {
-		try {
-			// Refresh token (or acquire a new token) for Graph API call.
-			const tokenData = await this.refreshAccessTokenWithPCA();
-			const accessToken = tokenData.accessToken;
-			console.log("Using Access Token:", accessToken);
-
-			const response = await requestUrl({
-				url: "https://graph.microsoft.com/v1.0/me/todo/lists",
-				method: "GET",
-				headers: { "Authorization": `Bearer ${accessToken}` },
-			});
-
-			if (response.status !== 200) {
-				throw new Error("Failed to fetch task lists: " + response.text);
-			}
-
-			const data = response.json;
-			if (data.value && Array.isArray(data.value)) {
-				this.settings.taskLists = data.value.map((list: any) => ({
-					id: list.id,
-					displayName: list.displayName,
-				}));
-				console.log("Fetched Task Lists:", this.settings.taskLists);
-			} else {
-				console.warn("No task lists found.");
-			}
-		} catch (err) {
-			console.error("Error loading task lists:", err);
+	// Ensures token cache is available
+	async getToken(): Promise<{ accessToken: string }> {
+		let tokenData;
+		if (fs.existsSync(this.tokenFilePath)) {
+			tokenData = await this.refreshAccessTokenWithPCA();
+		} else {
+			new Notice("No token cache found. Opening login window...");
+			tokenData = await this.getAccessToken();
 		}
+		return tokenData;
 	}
+
 
 	// Saves the MSAL token cache to disk.
 	private saveTokenCache(): void {
@@ -325,10 +301,44 @@ export default class MyTodoPlugin extends Plugin {
 		}
 	}
 
+	// Fetches available Microsoft To-Do task lists and stores them in settings.
+	async loadAvailableTaskLists(): Promise<void> {
+		try {
+			// Refresh token (or acquire a new token) for Graph API call.
+			const tokenData = await this.getToken();
+			const accessToken = tokenData.accessToken;
+			console.log("Using Access Token:", accessToken);
+
+			const response = await requestUrl({
+				url: "https://graph.microsoft.com/v1.0/me/todo/lists",
+				method: "GET",
+				headers: { "Authorization": `Bearer ${accessToken}` },
+			});
+
+			if (response.status !== 200) {
+				throw new Error("Failed to fetch task lists: " + response.text);
+			}
+
+			const data = response.json;
+			if (data.value && Array.isArray(data.value)) {
+				this.settings.taskLists = data.value.map((list: any) => ({
+					id: list.id,
+					displayName: list.displayName,
+				}));
+				console.log("Fetched Task Lists:", this.settings.taskLists);
+			} else {
+				console.warn("No task lists found.");
+			}
+		} catch (err) {
+			console.error("Error loading task lists:", err);
+		}
+	}
+
 	// Fetches task lists from Microsoft Graph using a refreshed access token.
 	async getTaskLists(): Promise<void> {
 		try {
-			const tokenData = await this.refreshAccessTokenWithPCA();
+			// Check if a token cache exists.
+			const tokenData = await this.getToken();
 			const accessToken = tokenData.accessToken;
 			console.log("Using Access Token:", accessToken);
 
@@ -369,7 +379,7 @@ export default class MyTodoPlugin extends Plugin {
 
 		try {
 			// Get a fresh access token
-			const tokenData = await this.refreshAccessTokenWithPCA();
+			const tokenData = await this.getToken();
 			const accessToken = tokenData.accessToken;
 
 			// Microsoft Graph API request for tasks in the selected list

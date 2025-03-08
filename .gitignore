@@ -26,3 +26,4 @@ data.json
 token_data.json
 my-todo-plugin/auth_token.json
 my-todo-plugin/token_cache.json
+token_cache.json
