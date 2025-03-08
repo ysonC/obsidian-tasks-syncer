@@ -35,6 +35,7 @@ export default class MyTodoPlugin extends Plugin {
 		}
 		new Notice(prefix + message);
 	}
+	// Test Commit
 
 	// onload is called when the plugin is activated.
 	async onload(): Promise<void> {
