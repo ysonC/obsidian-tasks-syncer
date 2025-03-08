@@ -6,7 +6,6 @@ import { BrowserWindow } from "@electron/remote";
 import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "setting";
 import * as path from "path";
 
-
 // Define the cache directory and OAuth constants.
 const CLIENT_ID: string = process.env.CLIENT_ID ?? "";
 const CLIENT_SECRET: string = process.env.CLIENT_SECRET ?? "";
@@ -19,10 +18,28 @@ export default class MyTodoPlugin extends Plugin {
 	tokenFilePath: string;
 	pca: ConfidentialClientApplication;
 
+	// Unified notification helper.
+	private notify(message: string, type: "error" | "warning" | "success" | "info" = "info"): void {
+		let prefix = "";
+		switch (type) {
+			case "error":
+				prefix = "❌ ";
+				break;
+			case "warning":
+				prefix = "⚠️ ";
+				break;
+			case "success":
+				prefix = "✅ ";
+				break;
+			// For info we leave it as is.
+		}
+		new Notice(prefix + message);
+	}
+
 	// onload is called when the plugin is activated.
 	async onload(): Promise<void> {
 		// 0. Load environment variables from the plugin's .env file.
-		const basePath = (this.app.vault.adapter as any).basePath
+		const basePath = (this.app.vault.adapter as any).basePath;
 		const pluginPath = path.join(basePath, ".obsidian/plugins/sync-obsidian-todo-plugin");
 		dotenv.config({ path: path.join(pluginPath, ".env"), override: true });
 
@@ -187,7 +204,6 @@ export default class MyTodoPlugin extends Plugin {
 		}
 		return tokenData;
 	}
-
 
 	// Saves the MSAL token cache to disk.
 	private saveTokenCache(): void {
@@ -362,18 +378,18 @@ export default class MyTodoPlugin extends Plugin {
 				listsText += "No task lists found.";
 			}
 
-			new Notice(listsText);
+			this.notify(listsText);
 			console.log("Task Lists:", listsText);
 		} catch (error) {
 			console.error("Error fetching task lists:", error);
-			new Notice("Error fetching task lists. Check the console for details.");
+			this.notify("Error fetching task lists. Check the console for details.", "error");
 		}
 	}
 
 	async getTasksFromSelectedList(): Promise<void> {
 		// Ensure a task list is selected
 		if (!this.settings.selectedTaskListId) {
-			new Notice("⚠️ No task list selected. Please choose one in settings.");
+			this.notify("No task list selected. Please choose one in settings.", "warning");
 			return;
 		}
 
@@ -405,39 +421,38 @@ export default class MyTodoPlugin extends Plugin {
 				tasksText += "No tasks found.";
 			}
 
-			new Notice(tasksText);
+			this.notify(tasksText);
 			console.log("Fetched Tasks:", tasksText);
 		} catch (error) {
 			console.error("Error fetching tasks:", error);
-			new Notice("❌ Error fetching tasks. Check the console for details.");
+			this.notify("Error fetching tasks. Check the console for details.", "error");
 		}
 	}
 
-
-	// Synchronize task lists to setting
+	// Synchronize task lists to setting.
 	async syncTaskLists(): Promise<void> {
 		try {
 			// Fetch the latest task lists from Microsoft Graph
 			await this.loadAvailableTaskLists();
 			await this.saveSettings();
-			new Notice("Task lists synchronized successfully!");
+			this.notify("Task lists synchronized successfully!", "success");
 		} catch (err) {
 			console.error("Error syncing task lists:", err);
-			new Notice("Failed to sync task lists. Check the console for details.");
+			this.notify("Failed to sync task lists. Check the console for details.", "error");
 		}
 	}
 
 	async syncTasksFromNote(): Promise<void> {
 		// Ensure a task list is selected
 		if (!this.settings.selectedTaskListId) {
-			new Notice("⚠️ No task list selected. Please choose one in settings.");
+			this.notify("No task list selected. Please choose one in settings.", "warning");
 			return;
 		}
 
 		// Get the current active note
 		const activeFile = this.app.workspace.getActiveFile();
 		if (!activeFile) {
-			new Notice("⚠️ No active note found. Open a note with tasks.");
+			this.notify("No active note found. Open a note with tasks.", "warning");
 			return;
 		}
 
@@ -450,7 +465,7 @@ export default class MyTodoPlugin extends Plugin {
 			tasks.push(match[1].trim()); // Extract only the task text
 		}
 		if (tasks.length === 0) {
-			new Notice("✅ No tasks found in this note.");
+			this.notify("No tasks found in this note.", "info");
 			return;
 		}
 
@@ -464,11 +479,11 @@ export default class MyTodoPlugin extends Plugin {
 				await this.createTaskInMicrosoftToDo(accessToken, task);
 			}
 
-			new Notice(`✅ Synced ${tasks.length} tasks to Microsoft To-Do!`);
-			console.log(`Synced Tasks:`, tasks);
+			this.notify(`Synced ${tasks.length} tasks to Microsoft To-Do!`, "success");
+			console.log("Synced Tasks:", tasks);
 		} catch (error) {
 			console.error("Error syncing tasks:", error);
-			new Notice("❌ Error syncing tasks. Check the console for details.");
+			this.notify("Error syncing tasks. Check the console for details.", "error");
 		}
 	}
 
@@ -527,18 +542,18 @@ export default class MyTodoPlugin extends Plugin {
 		const finalTasks = Array.from(tasksMap.entries()).map(
 			([taskText, state]) => `- ${state} ${taskText}`
 		);
-		const newContent = `${finalTasks.join("\n")}`;
+		const newContent = finalTasks.join("\n");
 
 		// Update or create the consolidated note.
 		const targetFile = this.app.vault.getAbstractFileByPath(noteName);
 		if (!targetFile) {
 			await this.app.vault.create(noteName, newContent);
-			new Notice("Tasks List created successfully!");
+			this.notify("Tasks List created successfully!", "success");
 		} else if (targetFile instanceof TFile) {
 			await this.app.vault.modify(targetFile, newContent);
-			new Notice("Tasks List updated successfully!");
+			this.notify("Tasks List updated successfully!", "success");
 		} else {
-			new Notice("Error: Tasks note is not a file.");
+			this.notify("Error: Tasks note is not a file.", "error");
 		}
 	}
 }
