@@ -56,7 +56,6 @@ export default class MyTodoPlugin extends Plugin {
 			this.pca.getTokenCache().deserialize(cacheData);
 			console.log("Token cache loaded from file.");
 		}
-		// console.log("Current Token Cache:", this.pca.getTokenCache().serialize());
 
 		// 4. Load settings from storage
 		await this.loadSettings();
@@ -88,9 +87,8 @@ export default class MyTodoPlugin extends Plugin {
 			name: "Login to Microsoft To-Do (Interactive)",
 			callback: async () => {
 				try {
-					const tokenData = await this.getAccessToken();
+					await this.getAccessToken();
 					new Notice("Logged in successfully!");
-					console.log("Access Token:", tokenData.accessToken);
 				} catch (error) {
 					console.error("Authentication error:", error);
 					new Notice("❌ Login failed! Check the console for details.");
@@ -209,7 +207,6 @@ export default class MyTodoPlugin extends Plugin {
 	private saveTokenCache(): void {
 		const tokenCacheSerialized = this.pca.getTokenCache().serialize();
 		fs.writeFileSync(this.tokenFilePath, tokenCacheSerialized);
-		console.log("Token cache saved to:", this.tokenFilePath);
 	}
 
 	// Interactive login: Opens a BrowserWindow to let the user log in, exchanges the auth code for tokens,
@@ -223,8 +220,6 @@ export default class MyTodoPlugin extends Plugin {
 				`&response_mode=query` +
 				`&scope=${encodeURIComponent(SCOPES.join(" "))}` +
 				`&prompt=consent`;
-
-			console.log("Authorization URL:", authUrl);
 
 			const authWindow = new BrowserWindow({
 				width: 600,
@@ -244,7 +239,6 @@ export default class MyTodoPlugin extends Plugin {
 			//   });
 
 			authWindow.loadURL(authUrl);
-			console.log("Opened auth window with URL:", authUrl);
 
 			authWindow.webContents.on("will-redirect", async (event, url) => {
 				console.log("Will redirect to:", url);
@@ -256,7 +250,6 @@ export default class MyTodoPlugin extends Plugin {
 					const authCode = redirectURL.searchParams.get("code");
 					if (!authCode) return; // If no auth code, exit early.
 
-					console.log("Auth code received:", authCode);
 					event.preventDefault();
 					authWindow.close();
 
@@ -267,7 +260,7 @@ export default class MyTodoPlugin extends Plugin {
 					};
 					const tokenResponse = await this.pca.acquireTokenByCode(tokenRequest);
 					if (!tokenResponse) throw new Error("No token response received.");
-					console.log("Token response:", tokenResponse);
+					// console.log("Token response:", tokenResponse);
 
 					this.saveTokenCache();
 					resolve({ accessToken: tokenResponse.accessToken });
@@ -297,7 +290,6 @@ export default class MyTodoPlugin extends Plugin {
 		const refreshTokenObject = parsedCache.RefreshToken;
 		const refreshTokenKey = Object.keys(refreshTokenObject)[0];
 		const refreshToken = refreshTokenObject[refreshTokenKey].secret;
-		console.log("Extracted Refresh Token:", refreshToken);
 
 		const tokenRequest = {
 			refreshToken: refreshToken,
@@ -308,7 +300,6 @@ export default class MyTodoPlugin extends Plugin {
 		try {
 			const tokenResponse = await this.pca.acquireTokenByRefreshToken(tokenRequest);
 			if (!tokenResponse) throw new Error("No token response received from refresh.");
-			console.log("Token response from refresh:", tokenResponse);
 			this.saveTokenCache();
 			return { accessToken: tokenResponse.accessToken };
 		} catch (error) {
@@ -323,7 +314,6 @@ export default class MyTodoPlugin extends Plugin {
 			// Refresh token (or acquire a new token) for Graph API call.
 			const tokenData = await this.getToken();
 			const accessToken = tokenData.accessToken;
-			console.log("Using Access Token:", accessToken);
 
 			const response = await requestUrl({
 				url: "https://graph.microsoft.com/v1.0/me/todo/lists",
@@ -356,7 +346,6 @@ export default class MyTodoPlugin extends Plugin {
 			// Check if a token cache exists.
 			const tokenData = await this.getToken();
 			const accessToken = tokenData.accessToken;
-			console.log("Using Access Token:", accessToken);
 
 			const response = await requestUrl({
 				url: "https://graph.microsoft.com/v1.0/me/todo/lists",
