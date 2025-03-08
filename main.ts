@@ -1,9 +1,10 @@
-import { Plugin, Notice, requestUrl,TFile } from "obsidian";
+import { Plugin, Notice, requestUrl, TFile } from "obsidian";
 import { ConfidentialClientApplication, Configuration } from "@azure/msal-node";
 import * as fs from "fs";
 import * as dotenv from "dotenv";
 import { BrowserWindow } from "@electron/remote";
 import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "setting";
+import * as path from "path";
 
 // Load the development .env file with override enabled.
 const devEnvPath = "/home/yson/projects/sync-obsidian-todo-plugin/my-todo-plugin/.env";
@@ -24,6 +25,11 @@ export default class MyTodoPlugin extends Plugin {
 
 	// onload is called when the plugin is activated.
 	async onload(): Promise<void> {
+		// 0. Load environment variables from the plugin's .env file.
+		const basePath = (this.app.vault.adapter as any).basePath
+		const pluginPath = path.join(basePath, ".obsidian/plugins/sync-obsidian-todo-plugin");
+		dotenv.config({ path: path.join(pluginPath, ".env"), override: true });
+
 		// 1. Load stored settings (or default settings if none exist).
 		await this.loadSettings();
 
@@ -478,52 +484,52 @@ export default class MyTodoPlugin extends Plugin {
 	}
 
 	async gatherTasks(): Promise<void> {
-	  const noteName = "Tasks List.md";
-	  const markdownFiles = this.app.vault.getMarkdownFiles();
-	  const tasksMap = new Map<string, string>();
+		const noteName = "Tasks List.md";
+		const markdownFiles = this.app.vault.getMarkdownFiles();
+		const tasksMap = new Map<string, string>();
 
-	  // Regex to match both undone (- [ ]) and done (- [x]) tasks, allowing optional leading spaces.
-	  const taskRegex = /^\s*-\s*\[( |x)\]\s+(.*)$/gm;
+		// Regex to match both undone (- [ ]) and done (- [x]) tasks, allowing optional leading spaces.
+		const taskRegex = /^\s*-\s*\[( |x)\]\s+(.*)$/gm;
 
-	  // Loop through every file in the vault.
-	  for (const file of markdownFiles) {
-		const content = await this.app.vault.read(file);
-		let match;
-		while ((match = taskRegex.exec(content)) !== null) {
-			console.log("Match:", match);
-		  // match[1] is either " " (undone) or "x" (done)
-		  // match[2] is the task text
-		  const currentState = match[1] === "x" ? "[x]" : "[ ]";
-		  const taskText = match[2].trim();
+		// Loop through every file in the vault.
+		for (const file of markdownFiles) {
+			const content = await this.app.vault.read(file);
+			let match;
+			while ((match = taskRegex.exec(content)) !== null) {
+				console.log("Match:", match);
+				// match[1] is either " " (undone) or "x" (done)
+				// match[2] is the task text
+				const currentState = match[1] === "x" ? "[x]" : "[ ]";
+				const taskText = match[2].trim();
 
-		  // If the task already exists and any occurrence is done, mark it as done.
-		  if (tasksMap.has(taskText)) {
-			if (currentState === "[x]") {
-			  tasksMap.set(taskText, "[x]");
+				// If the task already exists and any occurrence is done, mark it as done.
+				if (tasksMap.has(taskText)) {
+					if (currentState === "[x]") {
+						tasksMap.set(taskText, "[x]");
+					}
+				} else {
+					tasksMap.set(taskText, currentState);
+				}
 			}
-		  } else {
-			tasksMap.set(taskText, currentState);
-		  }
 		}
-	  }
 
-	  // Build the new consolidated content.
-	  const finalTasks = Array.from(tasksMap.entries()).map(
-		([taskText, state]) => `- ${state} ${taskText}`
-	  );
-	  const newContent = `${finalTasks.join("\n")}`;
+		// Build the new consolidated content.
+		const finalTasks = Array.from(tasksMap.entries()).map(
+			([taskText, state]) => `- ${state} ${taskText}`
+		);
+		const newContent = `${finalTasks.join("\n")}`;
 
-	  // Update or create the consolidated note.
-	  const targetFile = this.app.vault.getAbstractFileByPath(noteName);
-	  if (!targetFile) {
-		await this.app.vault.create(noteName, newContent);
-		new Notice("Tasks List created successfully!");
-	  } else if (targetFile instanceof TFile) {
-		await this.app.vault.modify(targetFile, newContent);
-		new Notice("Tasks List updated successfully!");
-	  } else {
-		new Notice("Error: Tasks note is not a file.");
-	  }
+		// Update or create the consolidated note.
+		const targetFile = this.app.vault.getAbstractFileByPath(noteName);
+		if (!targetFile) {
+			await this.app.vault.create(noteName, newContent);
+			new Notice("Tasks List created successfully!");
+		} else if (targetFile instanceof TFile) {
+			await this.app.vault.modify(targetFile, newContent);
+			new Notice("Tasks List updated successfully!");
+		} else {
+			new Notice("Error: Tasks note is not a file.");
+		}
 	}
 }
 
