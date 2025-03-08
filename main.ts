@@ -13,7 +13,7 @@ const AUTHORITY = "https://login.microsoftonline.com/consumers";
 const REDIRECT_URI = "http://localhost:5000"; // Must match your Azure registration
 const SCOPES = ["Tasks.ReadWrite", "offline_access"];
 
-export default class MyTodoPlugin extends Plugin {
+export default class TaskSyncerPlugin extends Plugin {
 	settings: MyTodoSettings;
 	tokenFilePath: string;
 	pca: ConfidentialClientApplication;
@@ -510,7 +510,7 @@ export default class MyTodoPlugin extends Plugin {
 			const content = await this.app.vault.read(file);
 			let match;
 			while ((match = taskRegex.exec(content)) !== null) {
-				console.log("Match:", match);
+				// console.log("Match:", match);
 				// match[1] is either " " (undone) or "x" (done)
 				// match[2] is the task text
 				const currentState = match[1] === "x" ? "[x]" : "[ ]";
