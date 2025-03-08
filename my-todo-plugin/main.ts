@@ -1,4 +1,4 @@
-import { Plugin, Notice, requestUrl } from "obsidian";
+import { Plugin, Notice, requestUrl,TFile } from "obsidian";
 import { ConfidentialClientApplication, Configuration } from "@azure/msal-node";
 import * as fs from "fs";
 import * as dotenv from "dotenv";
@@ -478,36 +478,51 @@ export default class MyTodoPlugin extends Plugin {
 	}
 
 	async gatherTasks(): Promise<void> {
-		// Retrieve all md files in vault
-		const markdownFiles = this.app.vault.getMarkdownFiles();
-		let tasks: string[] = [];
+	  const noteName = "Tasks List.md";
+	  const markdownFiles = this.app.vault.getMarkdownFiles();
+	  const tasksMap = new Map<string, string>();
 
-		// Extract tasks from each file
-		for (const file of markdownFiles) {
-			const fileContent = await this.app.vault.read(file);
-			const taskRegex = /^- \[ \] (.+)$/gm;
-			let match;
-			while ((match = taskRegex.exec(fileContent)) !== null) {
-				tasks.push(match[1].trim());
+	  // Regex to match both undone (- [ ]) and done (- [x]) tasks, allowing optional leading spaces.
+	  const taskRegex = /^\s*-\s*\[( |x)\]\s+(.*)$/gm;
+
+	  // Loop through every file except the consolidated note.
+	  for (const file of markdownFiles) {
+		const content = await this.app.vault.read(file);
+		let match;
+		while ((match = taskRegex.exec(content)) !== null) {
+		  // match[1] is either " " (undone) or "x" (done)
+		  // match[2] is the task text
+		  const currentState = match[1] === "x" ? "[x]" : "[ ]";
+		  const taskText = match[2].trim();
+
+		  // If the task already exists and any occurrence is done, mark it as done.
+		  if (tasksMap.has(taskText)) {
+			if (currentState === "[x]") {
+			  tasksMap.set(taskText, "[x]");
 			}
+		  } else {
+			tasksMap.set(taskText, currentState);
+		  }
 		}
+	  }
 
-		console.log("All tasks:", tasks);
+	  // Build the new consolidated content.
+	  const finalTasks = Array.from(tasksMap.entries()).map(
+		([taskText, state]) => `- ${state} ${taskText}`
+	  );
+	  const newContent = `${finalTasks.join("\n")}`;
 
-		// Organize tasks into one note
-		const content = tasks.map((task) => `- [ ] ${task}`).join("\n");
-
-		const noteName = "Tasks List.md";
-		let targetFile = this.app.vault.getAbstractFileByPath(noteName);
-		if (!targetFile) {
-			await this.app.vault.create(noteName, content);
-			new Notice("Tasks list created successfully!");
-		} else {
-			await this.app.vault.modify(targetFile, content);
-			new Notice("Tasks list updated successfully!");
-		}
-		
+	  // Update or create the consolidated note.
+	  const targetFile = this.app.vault.getAbstractFileByPath(noteName);
+	  if (!targetFile) {
+		await this.app.vault.create(noteName, newContent);
+		new Notice("Tasks List created successfully!");
+	  } else if (targetFile instanceof TFile) {
+		await this.app.vault.modify(targetFile, newContent);
+		new Notice("Tasks List updated successfully!");
+	  } else {
+		new Notice("Error: Consolidated Tasks note is not a file.");
+	  }
 	}
-
 }
 
