@@ -37,7 +37,7 @@ export default class MyTodoPlugin extends Plugin {
 			this.pca.getTokenCache().deserialize(cacheData);
 			console.log("Token cache loaded from file.");
 		}
-		console.log("Current Token Cache:", this.pca.getTokenCache().serialize());
+		// console.log("Current Token Cache:", this.pca.getTokenCache().serialize());
 
 		// 4. Load settings from storage
 		await this.loadSettings();
@@ -50,8 +50,8 @@ export default class MyTodoPlugin extends Plugin {
 
 	// Initializes the MSAL client and registers commands/ribbon icon.
 	initializePlugin(): void {
-		console.log("Client ID:", CLIENT_ID);
-		console.log("Client Secret:", CLIENT_SECRET);
+		// console.log("Client ID:", CLIENT_ID);
+		// console.log("Client Secret:", CLIENT_SECRET);
 
 		const config: Configuration = {
 			auth: {
@@ -61,7 +61,7 @@ export default class MyTodoPlugin extends Plugin {
 			},
 		};
 		this.pca = new ConfidentialClientApplication(config);
-		console.log("MSAL Configuration:", config);
+		// console.log("MSAL Configuration:", config);
 
 		// Register interactive login command.
 		this.addCommand({
@@ -137,6 +137,20 @@ export default class MyTodoPlugin extends Plugin {
 			},
 		});
 
+		// Testing new function command
+		this.addCommand({
+			id: "testing",
+			name: "Testing",
+			callback: async () => {
+				try {
+					console.log("Testing organizeTasks function");
+					await this.gatherTasks();
+				} catch (error) {
+					console.error("Error testing:", error);
+					new Notice("❌ Failed to test. Check the console for details.");
+				}
+			},
+		});
 
 		// Add a ribbon icon that fetches task lists.
 		this.addRibbonIcon("dice", "Get Microsoft To-Do Task Lists", async () => {
@@ -463,6 +477,37 @@ export default class MyTodoPlugin extends Plugin {
 		console.log(`Task created: ${taskTitle}`);
 	}
 
+	async gatherTasks(): Promise<void> {
+		// Retrieve all md files in vault
+		const markdownFiles = this.app.vault.getMarkdownFiles();
+		let tasks: string[] = [];
+
+		// Extract tasks from each file
+		for (const file of markdownFiles) {
+			const fileContent = await this.app.vault.read(file);
+			const taskRegex = /^- \[ \] (.+)$/gm;
+			let match;
+			while ((match = taskRegex.exec(fileContent)) !== null) {
+				tasks.push(match[1].trim());
+			}
+		}
+
+		console.log("All tasks:", tasks);
+
+		// Organize tasks into one note
+		const content = tasks.map((task) => `- [ ] ${task}`).join("\n");
+
+		const noteName = "Tasks List.md";
+		let targetFile = this.app.vault.getAbstractFileByPath(noteName);
+		if (!targetFile) {
+			await this.app.vault.create(noteName, content);
+			new Notice("Tasks list created successfully!");
+		} else {
+			await this.app.vault.modify(targetFile, content);
+			new Notice("Tasks list updated successfully!");
+		}
+		
+	}
 
 }
 
