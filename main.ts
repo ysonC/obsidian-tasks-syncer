@@ -134,29 +134,43 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		// Register command to sync task lists for the current note.
 		this.addCommand({
-			id: "sync-tasks-to-microsoft-todo",
-			name: "Sync Tasks to Microsoft To-Do",
+			id: "push-tasks-to-microsoft-todo",
+			name: "Push Tasks to Microsoft To-Do",
 			callback: async () => {
 				try {
-					await this.syncTasksFromNote();
+					await this.pushTasksFromNote();
 				} catch (error) {
-					console.error("Error syncing tasks:", error);
-					new Notice("❌ Failed to sync tasks. Check the console for details.");
+					console.error("Error pushing tasks:", error);
+					new Notice("❌ Failed to push tasks. Check the console for details.");
 				}
 			},
 		});
 
-		// Testing new function command
+		// Register command to organize tasks from all notes into a single note.
 		this.addCommand({
-			id: "testing",
-			name: "Testing",
+			id: "organize-tasks",
+			name: "Organize Tasks from All Notes",
 			callback: async () => {
 				try {
-					console.log("Testing organizeTasks function");
 					await this.gatherTasks();
 				} catch (error) {
-					console.error("Error testing:", error);
-					new Notice("❌ Failed to test. Check the console for details.");
+					console.error("Error organizing tasks:", error);
+					new Notice("❌ Failed to organize tasks. Check the console for details.");
+				}
+			},
+		});
+
+		// Register command to sync Obisidan tasks and Microsoft To-Do.
+		this.addCommand({
+			id: "sync-obsidian-tasks",
+			name: "Sync Obsidian Tasks with Microsoft To-Do",
+			callback: async () => {
+				try {
+					// Update here
+					await this.syncTasksBothWay();
+				} catch (error) {
+					console.error("Error syncing tasks:", error);
+					new Notice("❌ Failed to sync tasks. Check the console for details.");
 				}
 			},
 		});
@@ -440,7 +454,7 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 	}
 
-	async syncTasksFromNote(): Promise<void> {
+	async pushTasksFromNote(): Promise<void> {
 		// Ensure a task list is selected
 		if (!this.settings.selectedTaskListId) {
 			this.notify("No task list selected. Please choose one in settings.", "warning");
@@ -553,6 +567,10 @@ export default class TaskSyncerPlugin extends Plugin {
 		} else {
 			this.notify("Error: Tasks note is not a file.", "error");
 		}
+	}
+
+	async syncTasksBothWay(): Promise<void> {
+
 	}
 }
 
