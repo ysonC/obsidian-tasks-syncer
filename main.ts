@@ -16,7 +16,9 @@ const SCOPES = ["Tasks.ReadWrite", "offline_access"];
 export default class TaskSyncerPlugin extends Plugin {
 	settings: MyTodoSettings;
 	tokenFilePath: string;
-	pca: ConfidentialClientApplication;
+	cca: ConfidentialClientApplication;
+	clientId: string;
+	clientSecret: string;
 
 	// Unified notification helper.
 	private notify(message: string, type: "error" | "warning" | "success" | "info" = "info"): void {
@@ -53,17 +55,15 @@ export default class TaskSyncerPlugin extends Plugin {
 		this.tokenFilePath = `${pluginPath}/token_cache.json`;
 		if (fs.existsSync(this.tokenFilePath)) {
 			const cacheData = fs.readFileSync(this.tokenFilePath, "utf8");
-			this.pca.getTokenCache().deserialize(cacheData);
+			this.cca.getTokenCache().deserialize(cacheData);
 			console.log("Token cache loaded from file.");
 		}
 
-		// 4. Load settings from storage
-		await this.loadSettings();
-
-		// 5. Add the settings tab so the user can select a task list.
+		// 4. Add the settings tab so the user can select a task list.
 		this.addSettingTab(new MyTodoSettingTab(this.app, this));
 
-		new Notice("Microsoft To-Do Plugin Loaded!");
+		this.notify("Microsoft To-Do Plugin Loaded!", "info");
+
 	}
 
 	// Initializes the MSAL client and registers commands/ribbon icon.
@@ -71,15 +71,11 @@ export default class TaskSyncerPlugin extends Plugin {
 		// console.log("Client ID:", CLIENT_ID);
 		// console.log("Client Secret:", CLIENT_SECRET);
 
-		const config: Configuration = {
-			auth: {
-				clientId: CLIENT_ID,
-				authority: AUTHORITY,
-				clientSecret: CLIENT_SECRET,
-			},
-		};
-		this.pca = new ConfidentialClientApplication(config);
-		// console.log("MSAL Configuration:", config);
+		// Initialize the MSAL client
+		this.initClient().catch((err) => {
+			console.error("Error initializing MSAL client:", err);
+			this.notify("Error initializing MSAL client. Check the console for details.", "error");
+		});
 
 		// Register interactive login command.
 		this.addCommand({
@@ -181,6 +177,31 @@ export default class TaskSyncerPlugin extends Plugin {
 		});
 	}
 
+	// Initialize client pca
+	async initClient(): Promise<void> {
+		// Load and check the client ID and secret
+		this.clientId = this.settings.clientId;
+		this.clientSecret = this.settings.clientSecret;
+		if (!this.clientId || !this.clientSecret) {
+			throw new Error("Client ID and Client Secret are required.");
+		}
+
+		try {
+			// Initialize the MSAL client
+			const config: Configuration = {
+				auth: {
+					clientId: this.clientId,
+					authority: AUTHORITY,
+					clientSecret: this.clientSecret,
+				},
+			};
+			this.cca = new ConfidentialClientApplication(config);
+		} catch (error) {
+			console.error("Error initializing MSAL client:", error);
+			throw error;
+		}
+	}
+
 	// Loads plugin settings from the Obsidian vault.
 	async loadSettings(): Promise<void> {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -205,7 +226,7 @@ export default class TaskSyncerPlugin extends Plugin {
 
 	// Saves the MSAL token cache to disk.
 	private saveTokenCache(): void {
-		const tokenCacheSerialized = this.pca.getTokenCache().serialize();
+		const tokenCacheSerialized = this.cca.getTokenCache().serialize();
 		fs.writeFileSync(this.tokenFilePath, tokenCacheSerialized);
 	}
 
@@ -258,7 +279,7 @@ export default class TaskSyncerPlugin extends Plugin {
 						scopes: SCOPES,
 						redirectUri: REDIRECT_URI,
 					};
-					const tokenResponse = await this.pca.acquireTokenByCode(tokenRequest);
+					const tokenResponse = await this.cca.acquireTokenByCode(tokenRequest);
 					if (!tokenResponse) throw new Error("No token response received.");
 					// console.log("Token response:", tokenResponse);
 
@@ -280,9 +301,9 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 
 		const cacheData = fs.readFileSync(this.tokenFilePath, "utf8");
-		this.pca.getTokenCache().deserialize(cacheData);
+		this.cca.getTokenCache().deserialize(cacheData);
 
-		const tokenCacheSerialized = this.pca.getTokenCache().serialize();
+		const tokenCacheSerialized = this.cca.getTokenCache().serialize();
 		const parsedCache = JSON.parse(tokenCacheSerialized);
 		if (!parsedCache.RefreshToken) {
 			throw new Error("No refresh token found in the cache.");
@@ -298,7 +319,7 @@ export default class TaskSyncerPlugin extends Plugin {
 		};
 
 		try {
-			const tokenResponse = await this.pca.acquireTokenByRefreshToken(tokenRequest);
+			const tokenResponse = await this.cca.acquireTokenByRefreshToken(tokenRequest);
 			if (!tokenResponse) throw new Error("No token response received from refresh.");
 			this.saveTokenCache();
 			return { accessToken: tokenResponse.accessToken };

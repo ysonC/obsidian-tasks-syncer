@@ -5,11 +5,15 @@ export interface MyTodoSettings {
 	selectedTaskListId: string;
 	// A list of available task lists, each with an id and display name.
 	taskLists: Array<{ id: string; displayName: string }>;
+	clientId: string;
+	clientSecret: string;
 }
 
 export const DEFAULT_SETTINGS: MyTodoSettings = {
 	selectedTaskListId: "",
 	taskLists: [],
+	clientId: "",
+	clientSecret: "",
 };
 
 export class MyTodoSettingTab extends PluginSettingTab {
@@ -27,6 +31,29 @@ export class MyTodoSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		containerEl.createEl("h2", { text: "Microsoft To‑Do Settings" });
 
+		// Add a section for entering client ID and secret.
+		new Setting(containerEl)
+			.setName("Client Details")
+			.setDesc("Enter the client ID and client secret of your Azure AD app.")
+			.addText((text) =>
+				text
+					.setPlaceholder("Client ID")
+					.setValue(this.plugin.settings.clientId)
+					.onChange(async (value) => {
+						this.plugin.settings.clientId = value;
+						await this.plugin.saveSettings();
+					})
+			)
+			.addText((text) =>
+				text
+					.setPlaceholder("Client Secret")
+					.setValue(this.plugin.settings.clientSecret)
+					.onChange(async (value) => {
+						this.plugin.settings.clientSecret = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
 		// Add a sync button to update the task lists.
 		new Setting(containerEl)
 			.setName("Sync Task Lists")
@@ -39,7 +66,7 @@ export class MyTodoSettingTab extends PluginSettingTab {
 						this.display();
 					});
 			});
-		
+
 		// Add a dropdown to select the task
 		new Setting(containerEl)
 			.setName("Task List")
