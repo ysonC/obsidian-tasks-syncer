@@ -7,6 +7,7 @@ export interface MyTodoSettings {
 	taskLists: Array<{ id: string; displayName: string }>;
 	clientId: string;
 	clientSecret: string;
+	redirectUrl: string;
 }
 
 export const DEFAULT_SETTINGS: MyTodoSettings = {
@@ -14,6 +15,7 @@ export const DEFAULT_SETTINGS: MyTodoSettings = {
 	taskLists: [],
 	clientId: "",
 	clientSecret: "",
+	redirectUrl: "http://localhost:5000",
 };
 
 export class MyTodoSettingTab extends PluginSettingTab {
@@ -50,6 +52,20 @@ export class MyTodoSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.clientSecret)
 					.onChange(async (value) => {
 						this.plugin.settings.clientSecret = value;
+						await this.plugin.saveSettings();
+					})
+			);
+
+		// Add a section for URL to redirect to after authentication.
+		new Setting(containerEl)
+			.setName("Redirect URL")
+			.setDesc("Enter the URL to redirect to after authentication.")
+			.addText((text) =>
+				text
+					.setPlaceholder("http://localhost:5000")
+					.setValue(this.plugin.settings.redirectUrl)
+					.onChange(async (value) => {
+						this.plugin.settings.redirectUrl = value;
 						await this.plugin.saveSettings();
 					})
 			);

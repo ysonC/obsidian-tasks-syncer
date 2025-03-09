@@ -7,8 +7,6 @@ import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "setting";
 import * as path from "path";
 
 // Define the cache directory and OAuth constants.
-const CLIENT_ID: string = process.env.CLIENT_ID ?? "";
-const CLIENT_SECRET: string = process.env.CLIENT_SECRET ?? "";
 const AUTHORITY = "https://login.microsoftonline.com/consumers";
 const REDIRECT_URI = "http://localhost:5000"; // Must match your Azure registration
 const SCOPES = ["Tasks.ReadWrite", "offline_access"];
@@ -19,6 +17,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	cca: ConfidentialClientApplication;
 	clientId: string;
 	clientSecret: string;
+	redirectUrl: string;
 
 	// Unified notification helper.
 	private notify(message: string, type: "error" | "warning" | "success" | "info" = "info"): void {
@@ -48,10 +47,19 @@ export default class TaskSyncerPlugin extends Plugin {
 		// 1. Load stored settings (or default settings if none exist).
 		await this.loadSettings();
 
-		// 2. Initialize core components (MSAL client, commands, etc.).
-		this.initializePlugin();
+		// 2. Add the settings tab.
+		this.addSettingTab(new MyTodoSettingTab(this.app, this));
 
-		// 3. Set up the token cache.
+		// 3. Initialize core components (MSAL client, commands, etc.).
+		this.initializeCommand();
+
+		// 4. Initialize the MSAL client
+		this.initClient().catch((err) => {
+			console.error("Error initializing MSAL client:", err);
+			this.notify("Error initializing MSAL client. Check the console for details.", "error");
+		});
+
+		// 5. Set up the token cache.
 		this.tokenFilePath = `${pluginPath}/token_cache.json`;
 		if (fs.existsSync(this.tokenFilePath)) {
 			const cacheData = fs.readFileSync(this.tokenFilePath, "utf8");
@@ -59,23 +67,11 @@ export default class TaskSyncerPlugin extends Plugin {
 			console.log("Token cache loaded from file.");
 		}
 
-		// 4. Add the settings tab so the user can select a task list.
-		this.addSettingTab(new MyTodoSettingTab(this.app, this));
-
 		this.notify("Microsoft To-Do Plugin Loaded!", "info");
-
 	}
 
 	// Initializes the MSAL client and registers commands/ribbon icon.
-	initializePlugin(): void {
-		// console.log("Client ID:", CLIENT_ID);
-		// console.log("Client Secret:", CLIENT_SECRET);
-
-		// Initialize the MSAL client
-		this.initClient().catch((err) => {
-			console.error("Error initializing MSAL client:", err);
-			this.notify("Error initializing MSAL client. Check the console for details.", "error");
-		});
+	initializeCommand(): void {
 
 		// Register interactive login command.
 		this.addCommand({
@@ -182,8 +178,9 @@ export default class TaskSyncerPlugin extends Plugin {
 		// Load and check the client ID and secret
 		this.clientId = this.settings.clientId;
 		this.clientSecret = this.settings.clientSecret;
-		if (!this.clientId || !this.clientSecret) {
-			throw new Error("Client ID and Client Secret are required.");
+		this.redirectUrl = this.settings.redirectUrl;
+		if (!this.clientId || !this.clientSecret || !this.redirectUrl) {
+			throw new Error("Client ID, Client ID, client secret, or redirect URL not set.");
 		}
 
 		try {
@@ -234,7 +231,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	async getAccessToken(): Promise<{ accessToken: string }> {
 		return new Promise((resolve, reject) => {
 			const authUrl =
-				`${AUTHORITY}/oauth2/v2.0/authorize?client_id=${CLIENT_ID}` +
+				`${AUTHORITY}/oauth2/v2.0/authorize?client_id=${this.clientId}` +
 				`&response_type=code` +
 				`&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
 				`&response_mode=query` +
