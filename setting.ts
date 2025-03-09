@@ -70,19 +70,6 @@ export class MyTodoSettingTab extends PluginSettingTab {
 					})
 			);
 
-		// Add a sync button to update the task lists.
-		new Setting(containerEl)
-			.setName("Sync Task Lists")
-			.setDesc("Fetch the latest task lists from Microsoft To‑Do.")
-			.addButton((btn) => {
-				btn.setButtonText("Sync")
-					.onClick(async () => {
-						await this.plugin.syncTaskLists();
-						// Optionally, refresh the UI by re-rendering the settings tab.
-						this.display();
-					});
-			});
-
 		// Add a dropdown to select the task
 		new Setting(containerEl)
 			.setName("Task List")
