@@ -94,7 +94,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Refresh Microsoft To-Do Token",
 			callback: async () => {
 				try {
-					const tokenData = await this.refreshAccessTokenWithPCA();
+					const tokenData = await this.refreshAccessTokenWithCCA();
 					new Notice("Token refreshed successfully!");
 					console.log("New Access Token:", tokenData.accessToken);
 				} catch (error) {
@@ -212,7 +212,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	async getToken(): Promise<{ accessToken: string }> {
 		let tokenData;
 		if (fs.existsSync(this.tokenFilePath)) {
-			tokenData = await this.refreshAccessTokenWithPCA();
+			tokenData = await this.refreshAccessTokenWithCCA();
 		} else {
 			new Notice("No token cache found. Opening login window...");
 			tokenData = await this.getAccessToken();
@@ -291,7 +291,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	}
 
 	// Refresh tokens by loading the token cache, extracting the refresh token, and calling acquireTokenByRefreshToken.
-	async refreshAccessTokenWithPCA(): Promise<{ accessToken: string }> {
+	async refreshAccessTokenWithCCA(): Promise<{ accessToken: string }> {
 		if (!fs.existsSync(this.tokenFilePath)) {
 			throw new Error("No token cache found. Please login first.");
 		}
@@ -477,7 +477,7 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		try {
 			// Get a fresh access token
-			const tokenData = await this.refreshAccessTokenWithPCA();
+			const tokenData = await this.refreshAccessTokenWithCCA();
 			const accessToken = tokenData.accessToken;
 
 			// Add each task to Microsoft To-Do
