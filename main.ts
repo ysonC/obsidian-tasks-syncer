@@ -409,13 +409,14 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 	}
 
-	async getTasksFromSelectedList(): Promise<void> {
+	async getTasksFromSelectedList(): Promise<Map<string, string>> {
 		this.notify("Fetching tasks from selected list...");
+		const msTasks = new Map<string, { status: string, id: string }>();
 
 		// Ensure a task list is selected
 		if (!this.settings.selectedTaskListId) {
 			this.notify("No task list selected. Please choose one in settings.", "warning");
-			return;
+			return new Map();
 		}
 
 		try {
@@ -438,9 +439,13 @@ export default class TaskSyncerPlugin extends Plugin {
 			const data = response.json;
 			const listName = this.settings.taskLists.find((l) => l.id === this.settings.selectedTaskListId)?.displayName;
 			let tasksText = `Tasks: ${listName}\n`;
-			if (data.value && data.value.length > 0) {
+
+			if (data.value && Array.isArray(data.value) && data.value.length > 0) {
 				for (const task of data.value) {
-					tasksText += `- ${task.title} (Status: ${task.status})\n`;
+					// Determine status: "[x]" if completed, else "[ ]"
+					const status = task.status === "completed" ? "[x]" : "[ ]";
+					tasksText += `- ${task.title} (Status: ${status})\n`;
+					msTasks.set(task.title.trim(), { status, id: task.id });
 				}
 			} else {
 				tasksText += "No tasks found.";
@@ -452,6 +457,13 @@ export default class TaskSyncerPlugin extends Plugin {
 			console.error("Error fetching tasks:", error);
 			this.notify("Error fetching tasks. Check the console for details.", "error");
 		}
+
+		// Convert msTasks to a simple Map<string, string>
+		const taskStatusMap = new Map<string, string>();
+		msTasks.forEach((value, key) => {
+			taskStatusMap.set(key, value.status);
+		});
+		return taskStatusMap;
 	}
 
 	async pushTasksFromNote(): Promise<void> {
@@ -520,7 +532,7 @@ export default class TaskSyncerPlugin extends Plugin {
 		console.log(`Task created: ${taskTitle}`);
 	}
 
-	async gatherTasks(): Promise<void> {
+	async gatherTasks(): Promise<Map<string, string>> {
 		const noteName = "Tasks List.md";
 		const markdownFiles = this.app.vault.getMarkdownFiles();
 		const tasksMap = new Map<string, string>();
@@ -567,9 +579,16 @@ export default class TaskSyncerPlugin extends Plugin {
 		} else {
 			this.notify("Error: Tasks note is not a file.", "error");
 		}
+
+		return tasksMap;
 	}
 
 	async syncTasksBothWay(): Promise<void> {
+		console.log("Syncing tasks both ways...");
+		const localTasks = await this.gatherTasks();
+		const msTasks = await this.getTasksFromSelectedList();
+		console.log("Local Tasks:", localTasks);
+		console.log("Microsoft Tasks:", msTasks);
 
 	}
 }
