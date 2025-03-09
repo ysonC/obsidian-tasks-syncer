@@ -197,8 +197,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			};
 			this.cca = new ConfidentialClientApplication(config);
 		} catch (error) {
-			console.error("Error initializing MSAL client:", error);
-			throw error;
+			throw new Error("Error initializing MSAL client:" + error.message);
 		}
 	}
 
