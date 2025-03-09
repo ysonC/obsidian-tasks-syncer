@@ -70,6 +70,17 @@ export class MyTodoSettingTab extends PluginSettingTab {
 					})
 			);
 
+		// Add a button to get the task lists.
+		new Setting(containerEl)
+			.setName("Get Task Lists")
+			.setDesc("Click to get the list of available task lists.")
+			.addButton((button) => {
+				button.setButtonText("Get Task Lists").onClick(async () => {
+					await this.plugin.loadAvailableTaskLists();
+					this.display();
+				});
+			});
+
 		// Add a dropdown to select the task
 		new Setting(containerEl)
 			.setName("Task List")

@@ -327,6 +327,7 @@ export default class TaskSyncerPlugin extends Plugin {
 
 	// Fetches available Microsoft To-Do task lists and stores them in settings.
 	async loadAvailableTaskLists(): Promise<void> {
+		this.notify("Loading task lists...");
 		try {
 			// Refresh token (or acquire a new token) for Graph API call.
 			const tokenData = await this.getToken();
@@ -349,11 +350,13 @@ export default class TaskSyncerPlugin extends Plugin {
 					displayName: list.displayName,
 				}));
 				console.log("Fetched Task Lists:", this.settings.taskLists);
+				this.notify("Task lists loaded successfully!", "success");
 			} else {
 				console.warn("No task lists found.");
 			}
 		} catch (err) {
 			console.error("Error loading task lists:", err);
+			this.notify("Error loading task lists. Check the console for details.", "error");
 		}
 	}
 
@@ -393,6 +396,8 @@ export default class TaskSyncerPlugin extends Plugin {
 	}
 
 	async getTasksFromSelectedList(): Promise<void> {
+		this.notify("Fetching tasks from selected list...");
+
 		// Ensure a task list is selected
 		if (!this.settings.selectedTaskListId) {
 			this.notify("No task list selected. Please choose one in settings.", "warning");
@@ -432,19 +437,6 @@ export default class TaskSyncerPlugin extends Plugin {
 		} catch (error) {
 			console.error("Error fetching tasks:", error);
 			this.notify("Error fetching tasks. Check the console for details.", "error");
-		}
-	}
-
-	// Synchronize task lists to setting.
-	async syncTaskLists(): Promise<void> {
-		try {
-			// Fetch the latest task lists from Microsoft Graph
-			await this.loadAvailableTaskLists();
-			await this.saveSettings();
-			this.notify("Task lists synchronized successfully!", "success");
-		} catch (err) {
-			console.error("Error syncing task lists:", err);
-			this.notify("Failed to sync task lists. Check the console for details.", "error");
 		}
 	}
 
