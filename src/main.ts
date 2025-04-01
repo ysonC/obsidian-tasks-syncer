@@ -455,54 +455,26 @@ export default class TaskSyncerPlugin extends Plugin {
 			this.notify("Error fetching task lists. Check the console for details.", "error");
 		}
 	}
+
+	// Use the existing fetchTasks API for tasks in the selected list.
 	async getTasksFromSelectedList(): Promise<Map<string, { title: string, status: string, id: string }>> {
 		this.notify("Fetching tasks from selected list...");
 		const msTasks = new Map<string, { title: string, status: string, id: string }>();
-		// Ensure a task list is selected
 		if (!this.settings.selectedTaskListId) {
 			this.notify("No task list selected. Please choose one in settings.", "warning");
-			return new Map();
+			return msTasks;
 		}
-
 		try {
-			// Get a fresh access token
 			const tokenData = await this.getToken();
 			const accessToken = tokenData.accessToken;
-
-			// Microsoft Graph API request for tasks in the selected list
-			const response = await requestUrl({
-				url: `https://graph.microsoft.com/v1.0/me/todo/lists/${this.settings.selectedTaskListId}/tasks`,
-				method: "GET",
-				headers: { "Authorization": `Bearer ${accessToken}` },
-			});
-
-			if (response.status !== 200) {
-				throw new Error("Failed to fetch tasks: " + response.text);
-			}
-
-			// Parse and display tasks
-			const data = response.json;
-			const listName = this.settings.taskLists.find((l) => l.id === this.settings.selectedTaskListId)?.displayName;
-			let tasksText = `Tasks: ${listName}\n`;
-
-			if (data.value && Array.isArray(data.value) && data.value.length > 0) {
-				for (const task of data.value) {
-					const title = task.title.trim();
-					const status = task.status; // e.g., "completed" or "notStarted"
-					tasksText += `- ${title} (Status: ${status})\n`;
-					msTasks.set(title, { title, status, id: task.id });
-				}
-			} else {
-				tasksText += "No tasks found.";
-			}
-
-			console.log("Fetched Tasks:", tasksText);
+			// fetchTasks already returns a Map<string, { title, status, id }>
+			const tasks = await fetchTasks(this.settings, accessToken);
+			console.log("Fetched Tasks:", tasks);
+			return tasks;
 		} catch (error) {
 			console.error("Error fetching tasks:", error);
 			this.notify("Error fetching tasks. Check the console for details.", "error");
 		}
-
-		console.log("MS Tasks:", msTasks);
 		return msTasks;
 	}
 

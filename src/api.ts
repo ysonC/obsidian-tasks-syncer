@@ -1,4 +1,3 @@
-// src/api.ts
 import { requestUrl } from "obsidian";
 import { MyTodoSettings } from "src/setting";
 
@@ -24,9 +23,11 @@ export async function fetchTasks(
 		method: "GET",
 		headers: { Authorization: `Bearer ${accessToken}` },
 	});
+
 	if (response.status !== 200) {
 		throw new Error("Failed to fetch tasks: " + response.text);
 	}
+
 	const data = response.json;
 	if (data.value && Array.isArray(data.value)) {
 		for (const task of data.value) {
@@ -34,6 +35,7 @@ export async function fetchTasks(
 			tasks.set(title, { title, status: task.status, id: task.id });
 		}
 	}
+
 	return tasks;
 }
 
@@ -62,6 +64,7 @@ export async function createTask(
 			status: status,
 		}),
 	});
+
 	if (response.status !== 201) {
 		throw new Error(`Failed to create task: ${response.text}`);
 	}
@@ -90,6 +93,7 @@ export async function updateTask(
 		},
 		body: JSON.stringify({ status: newStatus }),
 	});
+
 	if (response.status !== 200) {
 		throw new Error(`Failed to update task: ${response.text}`);
 	}
@@ -98,26 +102,34 @@ export async function updateTask(
 /**
  * Fetches the available Microsoft To‑Do task lists.
  * @param accessToken A valid access token.
- * @returns An array of objects with list id and display name.
+ * @returns A map where each key is the task list title and the value is an object containing title, status (default), and id.
  */
 export async function fetchTaskLists(
 	accessToken: string
-): Promise<Array<{ id: string; displayName: string }>> {
+): Promise<Map<string, { title: string, status: string, id: string }>> {
 	const response = await requestUrl({
 		url: "https://graph.microsoft.com/v1.0/me/todo/lists",
 		method: "GET",
 		headers: { Authorization: `Bearer ${accessToken}` },
 	});
+
 	if (response.status !== 200) {
 		throw new Error("Failed to fetch task lists: " + response.text);
 	}
-	const data = response.json;
-	if (data.value && Array.isArray(data.value)) {
-		return data.value.map((list: any) => ({
-			id: list.id,
-			displayName: list.displayName,
-		}));
-	}
-	return [];
-}
 
+	const data = response.json;
+	const taskLists = new Map<string, { title: string, status: string, id: string }>();
+
+	if (data.value && Array.isArray(data.value)) {
+		for (const list of data.value) {
+			// Using list.displayName as the title, and setting a default status (empty string)
+			taskLists.set(list.displayName, {
+				title: list.displayName,
+				status: "", // Default value since task lists don't include a status
+				id: list.id
+			});
+		}
+	}
+
+	return taskLists;
+}
