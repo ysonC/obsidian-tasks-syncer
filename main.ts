@@ -3,8 +3,11 @@ import { ConfidentialClientApplication, Configuration } from "@azure/msal-node";
 import * as fs from "fs";
 import * as dotenv from "dotenv";
 import { BrowserWindow } from "@electron/remote";
-import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "setting";
 import * as path from "path";
+import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "setting";
+import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "plugin-view";
+
+
 
 // Define the cache directory and OAuth constants.
 const AUTHORITY = "https://login.microsoftonline.com/consumers";
@@ -50,16 +53,21 @@ export default class TaskSyncerPlugin extends Plugin {
 		// 2. Add the settings tab.
 		this.addSettingTab(new MyTodoSettingTab(this.app, this));
 
-		// 3. Initialize core components (MSAL client, commands, etc.).
+		// 3. Register the sidebar view.
+		this.registerView(
+			VIEW_TYPE_TODO_SIDEBAR,
+			(leaf) => new TaskSidebarView(leaf, this));
+
+		// 4. Initialize core components (MSAL client, commands, etc.).
 		this.initializeCommand();
 
-		// 4. Initialize the MSAL client
+		// 5. Initialize the MSAL client
 		this.initClient().catch((err) => {
 			console.error("Error initializing MSAL client:", err);
 			this.notify("Error initializing MSAL client. Check the console for details.", "error");
 		});
 
-		// 5. Set up the token cache.
+		// 6. Set up the token cache.
 		this.tokenFilePath = `${pluginPath}/token_cache.json`;
 		if (fs.existsSync(this.tokenFilePath)) {
 			const cacheData = fs.readFileSync(this.tokenFilePath, "utf8");
@@ -70,8 +78,32 @@ export default class TaskSyncerPlugin extends Plugin {
 		this.notify("Microsoft To-Do Plugin Loaded!", "info");
 	}
 
+	async activateSidebar() {
+		const rightLeaf = this.app.workspace.getRightLeaf(false);
+		if (!rightLeaf) {
+			console.warn("No right leaf available.");
+			return;
+		}
+
+		await rightLeaf.setViewState({
+			type: VIEW_TYPE_TODO_SIDEBAR,
+			active: true,
+		});
+
+		this.app.workspace.revealLeaf(rightLeaf);
+	}
+
 	// Initializes the MSAL client and registers commands/ribbon icon.
 	initializeCommand(): void {
+
+		// Register command to open the sidebar.
+		this.addCommand({
+			id: "open-microsoft-todo-sidebar",
+			name: "Open Microsoft To-Do Sidebar",
+			callback: async () => {
+				this.activateSidebar();
+			}
+		});
 
 		// Register interactive login command.
 		this.addCommand({
@@ -467,6 +499,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	}
 
 	async pushTasksFromNote(): Promise<void> {
+		this.notify("Syncing tasks to Microsoft To-Do...");
 		// Ensure a task list is selected
 		if (!this.settings.selectedTaskListId) {
 			this.notify("No task list selected. Please choose one in settings.", "warning");
