@@ -1,5 +1,5 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
-import TaskSyncerPlugin from "./main"; // Adjust the path as needed
+import TaskSyncerPlugin from "src/main";
 
 export interface MyTodoSettings {
 	selectedTaskListId: string;

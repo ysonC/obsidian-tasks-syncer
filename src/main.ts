@@ -4,10 +4,8 @@ import * as fs from "fs";
 import * as dotenv from "dotenv";
 import { BrowserWindow } from "@electron/remote";
 import * as path from "path";
-import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "setting";
-import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "plugin-view";
-
-
+import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "src/setting";
+import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "src/plugin-view";
 
 // Define the cache directory and OAuth constants.
 const AUTHORITY = "https://login.microsoftonline.com/consumers";
