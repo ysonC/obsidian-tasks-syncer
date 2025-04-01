@@ -75,23 +75,12 @@ export default class TaskSyncerPlugin extends Plugin {
 			console.log("Token cache loaded from file.");
 		}
 
+		// 7. Register styles
+		// this.registerStyles(pluginPath);
+		this.injectStyles();
 		this.notify("Microsoft To-Do Plugin Loaded!", "info");
 	}
 
-	async activateSidebar() {
-		const rightLeaf = this.app.workspace.getRightLeaf(false);
-		if (!rightLeaf) {
-			console.warn("No right leaf available.");
-			return;
-		}
-
-		await rightLeaf.setViewState({
-			type: VIEW_TYPE_TODO_SIDEBAR,
-			active: true,
-		});
-
-		this.app.workspace.revealLeaf(rightLeaf);
-	}
 
 	// Initializes the MSAL client and registers commands/ribbon icon.
 	initializeCommand(): void {
@@ -217,6 +206,43 @@ export default class TaskSyncerPlugin extends Plugin {
 				new Notice("❌ Failed to fetch task lists. Check the console for details.");
 			}
 		});
+	}
+
+	injectStyles() {
+		const style = document.createElement("style");
+		style.textContent = `
+		.task-line {
+			display: flex;
+			align-items: center;
+			gap: 8px;
+			padding: 2px 0;
+		}
+
+		.task-line input[type="checkbox"] {
+			margin: 0;
+			transform: scale(1.1);
+		}
+
+		.task-line span {
+			font-size: 14px;
+		}
+	`;
+		document.head.appendChild(style);
+	}
+
+	async activateSidebar() {
+		const rightLeaf = this.app.workspace.getRightLeaf(false);
+		if (!rightLeaf) {
+			console.warn("No right leaf available.");
+			return;
+		}
+
+		await rightLeaf.setViewState({
+			type: VIEW_TYPE_TODO_SIDEBAR,
+			active: true,
+		});
+
+		this.app.workspace.revealLeaf(rightLeaf);
 	}
 
 	// Initialize client pca
@@ -474,8 +500,8 @@ export default class TaskSyncerPlugin extends Plugin {
 
 			if (data.value && Array.isArray(data.value) && data.value.length > 0) {
 				for (const task of data.value) {
-					// Determine status: "[x]" if completed, else "[ ]"
-					const status = task.status === "completed" ? "[x]" : "[ ]";
+					// const status = task.status === "completed" ? "[x]" : "[ ]";
+					const status = task.status;
 					tasksText += `- ${task.title} (Status: ${status})\n`;
 					msTasks.set(task.title.trim(), { status, id: task.id });
 				}
@@ -483,7 +509,8 @@ export default class TaskSyncerPlugin extends Plugin {
 				tasksText += "No tasks found.";
 			}
 
-			this.notify(tasksText);
+			// this.notify(tasksText);
+			this.notify("Tasks fetched successfully!", "success");
 			console.log("Fetched Tasks:", tasksText);
 		} catch (error) {
 			console.error("Error fetching tasks:", error);
