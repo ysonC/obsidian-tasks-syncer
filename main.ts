@@ -471,11 +471,9 @@ export default class TaskSyncerPlugin extends Plugin {
 			this.notify("Error fetching task lists. Check the console for details.", "error");
 		}
 	}
-
-	async getTasksFromSelectedList(): Promise<Map<string, string>> {
+	async getTasksFromSelectedList(): Promise<Map<string, { title: string, status: string, id: string }>> {
 		this.notify("Fetching tasks from selected list...");
-		const msTasks = new Map<string, { status: string, id: string }>();
-
+		const msTasks = new Map<string, { title: string, status: string, id: string }>();
 		// Ensure a task list is selected
 		if (!this.settings.selectedTaskListId) {
 			this.notify("No task list selected. Please choose one in settings.", "warning");
@@ -505,10 +503,10 @@ export default class TaskSyncerPlugin extends Plugin {
 
 			if (data.value && Array.isArray(data.value) && data.value.length > 0) {
 				for (const task of data.value) {
-					// const status = task.status === "completed" ? "[x]" : "[ ]";
-					const status = task.status;
-					tasksText += `- ${task.title} (Status: ${status})\n`;
-					msTasks.set(task.title.trim(), { status, id: task.id });
+					const title = task.title.trim();
+					const status = task.status; // e.g., "completed" or "notStarted"
+					tasksText += `- ${title} (Status: ${status})\n`;
+					msTasks.set(title, { title, status, id: task.id });
 				}
 			} else {
 				tasksText += "No tasks found.";
@@ -520,12 +518,8 @@ export default class TaskSyncerPlugin extends Plugin {
 			this.notify("Error fetching tasks. Check the console for details.", "error");
 		}
 
-		// Convert msTasks to a simple Map<string, string>
-		const taskStatusMap = new Map<string, string>();
-		msTasks.forEach((value, key) => {
-			taskStatusMap.set(key, value.status);
-		});
-		return taskStatusMap;
+		console.log("MS Tasks:", msTasks);
+		return msTasks;
 	}
 
 	async pushTasksFromNote(): Promise<void> {
@@ -545,13 +539,15 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		// Read the content of the note and extract tasks
 		const fileContent = await this.app.vault.read(activeFile);
-		const taskRegex = /^- \[ \] (.+)$/gm;
-		const tasks: string[] = [];
+		const taskRegex = /^-\s*\[( |x)\]\s+(.+)$/gm;
+		const noteTasks: Array<{ title: string, complete: boolean }> = [];
 		let match;
 		while ((match = taskRegex.exec(fileContent)) !== null) {
-			tasks.push(match[1].trim()); // Extract only the task text
+			const complete = match[1] === "x";
+			const title = match[2].trim();
+			noteTasks.push({ title, complete });
 		}
-		if (tasks.length === 0) {
+		if (noteTasks.length === 0) {
 			this.notify("No tasks found in this note.", "info");
 			return;
 		}
@@ -566,17 +562,22 @@ export default class TaskSyncerPlugin extends Plugin {
 			let newTasksCount = 0;
 
 			// Add each task to Microsoft To-Do
-			for (const task of tasks) {
-				if (existingTasks.has(task)) {
-					console.log(`Task already exists: ${task}`);
+			for (const task of noteTasks) {
+				const existingTask = existingTasks.get(task.title);
+				if (existingTask) {
+					if (task.complete && existingTask.status === "notStarted") {
+						await this.updateTaskInMicrosoftToDo(accessToken, existingTask.id, true);
+					} else {
+						console.log(`Task already exists: ${task}`);
+					}
 					continue;
-				}
-				await this.createTaskInMicrosoftToDo(accessToken, task);
+				} 
+				await this.createTaskInMicrosoftToDo(accessToken, task.title);
 				newTasksCount++;
 			}
 
 			this.notify(`Synced ${newTasksCount} new tasks to Microsoft To-Do!`, "success");
-			console.log("Synced Tasks:", tasks);
+			console.log("Synced Tasks:", noteTasks);
 		} catch (error) {
 			console.error("Error syncing tasks:", error);
 			this.notify("Error syncing tasks. Check the console for details.", "error");
@@ -655,6 +656,24 @@ export default class TaskSyncerPlugin extends Plugin {
 		return tasksMap;
 	}
 
+	async updateTaskInMicrosoftToDo(accessToken: string, taskId: string, complete: boolean): Promise<void> {
+		const newStatus = complete ? "completed" : "notStarted";
+		const response = await requestUrl({
+			url: `https://graph.microsoft.com/v1.0/me/todo/lists/${this.settings.selectedTaskListId}/tasks/${taskId}`,
+			method: "PATCH",
+			headers: {
+				"Authorization": `Bearer ${accessToken}`,
+				"Content-Type": "application/json",
+			},
+			body: JSON.stringify({
+				status: newStatus
+			}),
+		});
+		if (response.status !== 200) {
+			throw new Error(`Failed to update task: ${response.text}`);
+		}
+		console.log(`Task ${taskId} updated to status: ${newStatus}`);
+	}
 	async syncTasksBothWay(): Promise<void> {
 		console.log("Syncing tasks both ways...");
 		const localTasks = await this.gatherTasks();

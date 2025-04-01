@@ -28,7 +28,7 @@ export class TaskSidebarView extends ItemView {
 		container.empty();
 
 		const refreshBtn = container.createEl("button", {
-			text: "🔄 Refresh Tasks",
+			text: "Refresh Tasks",
 		});
 		refreshBtn.onclick = () => this.render();
 
@@ -41,18 +41,18 @@ export class TaskSidebarView extends ItemView {
 			return;
 		}
 
-		tasks.forEach((value, title) => {
+		tasks.forEach((task) => {
 			const line = container.createEl("div", { cls: "task-line" });
 
 			const checkbox = line.createEl("input", {
 				type: "checkbox",
 			}) as HTMLInputElement;
 
-			checkbox.checked = value === "completed";
+			checkbox.checked = task.status === "completed";
 			checkbox.disabled = true;
 
 			line.createEl("span", {
-				text: title,
+				text: task.title,
 			});
 		});
 	}
