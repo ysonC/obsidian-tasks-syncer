@@ -20,13 +20,22 @@ export class TaskSidebarView extends ItemView {
 	}
 
 	async onOpen() {
+		await this.render();
+	}
+
+	async render() {
 		const container = this.containerEl.children[1];
 		container.empty();
+
+		const refreshBtn = container.createEl("button", {
+			text: "🔄 Refresh Tasks",
+		});
+		refreshBtn.onclick = () => this.render();
 
 		container.createEl("h3", { text: "Tasks" });
 
 		const tasks = await this.plugin.getTasksFromSelectedList();
-		console.log(tasks);
+
 		if (tasks.size === 0) {
 			container.createEl("p", { text: "No tasks found or not authenticated." });
 			return;
@@ -34,20 +43,19 @@ export class TaskSidebarView extends ItemView {
 
 		tasks.forEach((value, title) => {
 			const line = container.createEl("div", { cls: "task-line" });
-			// line.createEl("input", { attr: { type: "checkbox" } });
+
 			const checkbox = line.createEl("input", {
-				type: "checkbox"
+				type: "checkbox",
 			}) as HTMLInputElement;
-			
+
 			checkbox.checked = value === "completed";
 			checkbox.disabled = true;
 
 			line.createEl("span", {
-				text: ` ${title}`,
+				text: title,
 			});
 		});
 	}
-
 	async onClose() {
 		// Optional cleanup
 	}

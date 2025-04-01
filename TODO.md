@@ -1,9 +1,12 @@
-# Todo 1. 
+# Todo
 
 ## main.ts
-- [ ] Add check to see if task is already in the list 
+
+## plugin-view.ts
+- [x] Add check to see if task is already in the list 
+- [ ] Add interactive check box to each task, to mark as complete
 
 ## New Features
-- [ ] Add sidebar to show all tasks
+- [x] Add sidebar to show all tasks
 - [ ] Add ability to set "My Day" tasks
 

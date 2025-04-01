@@ -101,10 +101,10 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				try {
 					await this.getAccessToken();
-					new Notice("Logged in successfully!");
+					this.notify("Logged in successfully!", "success");
 				} catch (error) {
 					console.error("Authentication error:", error);
-					new Notice("❌ Login failed! Check the console for details.");
+					this.notify("Error logining in! Check the console for details.", "error");
 				}
 			},
 		});
@@ -116,11 +116,11 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				try {
 					const tokenData = await this.refreshAccessTokenWithCCA();
-					new Notice("Token refreshed successfully!");
+					this.notify("Token refreshed successfully!", "success");
 					console.log("New Access Token:", tokenData.accessToken);
 				} catch (error) {
 					console.error("Error refreshing token:", error);
-					new Notice("❌ Token refresh failed! Check the console for details.");
+					this.notify("Error refreshing token. Check the console for details.", "error");
 				}
 			},
 		});
@@ -132,9 +132,10 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				try {
 					await this.getTaskLists();
+					this.notify("Task lists fetched successfully!", "success");
 				} catch (error) {
 					console.error("Error fetching task lists:", error);
-					new Notice("❌ Failed to fetch task lists. Check the console for details.");
+					this.notify("Error fetching task lists. Check the console for details.", "error");
 				}
 			},
 		});
@@ -146,9 +147,10 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				try {
 					await this.getTasksFromSelectedList();
+					this.notify("Tasks fetched successfully!", "success");
 				} catch (error) {
 					console.error("Error fetching tasks from selected list:", error);
-					new Notice("❌ Failed to fetch tasks. Check the console for details.");
+					this.notify("Error fetching tasks. Check the console for details.", "error");
 				}
 			},
 		});
@@ -160,9 +162,11 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				try {
 					await this.pushTasksFromNote();
+					this.notify("Tasks pushed successfully!", "success");
+					await this.refreshSidebarView();
 				} catch (error) {
 					console.error("Error pushing tasks:", error);
-					new Notice("❌ Failed to push tasks. Check the console for details.");
+					this.notify("Error pushing tasks. Check the console for details.", "error");
 				}
 			},
 		});
@@ -174,9 +178,10 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				try {
 					await this.gatherTasks();
+					this.notify("Tasks organized successfully!", "success");
 				} catch (error) {
 					console.error("Error organizing tasks:", error);
-					new Notice("❌ Failed to organize tasks. Check the console for details.");
+					this.notify("Error organizing tasks. Check the console for details.", "error");
 				}
 			},
 		});
@@ -191,7 +196,7 @@ export default class TaskSyncerPlugin extends Plugin {
 					await this.syncTasksBothWay();
 				} catch (error) {
 					console.error("Error syncing tasks:", error);
-					new Notice("❌ Failed to sync tasks. Check the console for details.");
+					this.notify("Error syncing tasks. Check the console for details.", "error");
 				}
 			},
 		});
@@ -200,10 +205,10 @@ export default class TaskSyncerPlugin extends Plugin {
 		this.addRibbonIcon("dice", "Get Microsoft To-Do Task Lists", async () => {
 			try {
 				await this.getTaskLists();
-				new Notice("Task lists fetched successfully!");
+				this.notify("Task lists fetched successfully!", "success");
 			} catch (error) {
 				console.error("Error fetching task lists:", error);
-				new Notice("❌ Failed to fetch task lists. Check the console for details.");
+				this.notify("Error fetching task lists. Check the console for details.");
 			}
 		});
 	}
@@ -509,8 +514,6 @@ export default class TaskSyncerPlugin extends Plugin {
 				tasksText += "No tasks found.";
 			}
 
-			// this.notify(tasksText);
-			this.notify("Tasks fetched successfully!", "success");
 			console.log("Fetched Tasks:", tasksText);
 		} catch (error) {
 			console.error("Error fetching tasks:", error);
@@ -558,12 +561,21 @@ export default class TaskSyncerPlugin extends Plugin {
 			const tokenData = await this.refreshAccessTokenWithCCA();
 			const accessToken = tokenData.accessToken;
 
+			// Get the selected task list
+			const existingTasks = await this.getTasksFromSelectedList();
+			let newTasksCount = 0;
+
 			// Add each task to Microsoft To-Do
 			for (const task of tasks) {
+				if (existingTasks.has(task)) {
+					console.log(`Task already exists: ${task}`);
+					continue;
+				}
 				await this.createTaskInMicrosoftToDo(accessToken, task);
+				newTasksCount++;
 			}
 
-			this.notify(`Synced ${tasks.length} tasks to Microsoft To-Do!`, "success");
+			this.notify(`Synced ${newTasksCount} new tasks to Microsoft To-Do!`, "success");
 			console.log("Synced Tasks:", tasks);
 		} catch (error) {
 			console.error("Error syncing tasks:", error);
@@ -650,6 +662,10 @@ export default class TaskSyncerPlugin extends Plugin {
 		console.log("Local Tasks:", localTasks);
 		console.log("Microsoft Tasks:", msTasks);
 
+	}
+
+	// TODO: Implement this method
+	async refreshSidebarView() {
 	}
 }
 
