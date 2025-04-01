@@ -6,6 +6,7 @@ import { BrowserWindow } from "@electron/remote";
 import * as path from "path";
 import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "src/setting";
 import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "src/plugin-view";
+import { fetchTasks, createTask, updateTask, fetchTaskLists, MSTask } from "src/api";
 
 // Define the cache directory and OAuth constants.
 const AUTHORITY = "https://login.microsoftonline.com/consumers";
@@ -180,21 +181,6 @@ export default class TaskSyncerPlugin extends Plugin {
 				} catch (error) {
 					console.error("Error organizing tasks:", error);
 					this.notify("Error organizing tasks. Check the console for details.", "error");
-				}
-			},
-		});
-
-		// Register command to sync Obisidan tasks and Microsoft To-Do.
-		this.addCommand({
-			id: "sync-obsidian-tasks",
-			name: "Sync Obsidian Tasks with Microsoft To-Do",
-			callback: async () => {
-				try {
-					// Update here
-					await this.syncTasksBothWay();
-				} catch (error) {
-					console.error("Error syncing tasks:", error);
-					this.notify("Error syncing tasks. Check the console for details.", "error");
 				}
 			},
 		});
@@ -522,20 +508,21 @@ export default class TaskSyncerPlugin extends Plugin {
 
 	async pushTasksFromNote(): Promise<void> {
 		this.notify("Syncing tasks to Microsoft To-Do...");
-		// Ensure a task list is selected
+		
+		// Ensure a task list is selected.
 		if (!this.settings.selectedTaskListId) {
 			this.notify("No task list selected. Please choose one in settings.", "warning");
 			return;
 		}
 
-		// Get the current active note
+		// Get the active note.
 		const activeFile = this.app.workspace.getActiveFile();
 		if (!activeFile) {
 			this.notify("No active note found. Open a note with tasks.", "warning");
 			return;
 		}
-
-		// Read the content of the note and extract tasks
+		
+		// Read note content and extract tasks using a regex.
 		const fileContent = await this.app.vault.read(activeFile);
 		const taskRegex = /^-\s*\[( |x)\]\s+(.+)$/gm;
 		const noteTasks: Array<{ title: string, complete: boolean }> = [];
@@ -549,28 +536,31 @@ export default class TaskSyncerPlugin extends Plugin {
 			this.notify("No tasks found in this note.", "info");
 			return;
 		}
-
+		
 		try {
-			// Get a fresh access token
+			// Get a fresh access token.
 			const tokenData = await this.refreshAccessTokenWithCCA();
 			const accessToken = tokenData.accessToken;
-
-			// Get the selected task list
-			const existingTasks = await this.getTasksFromSelectedList();
+			// Fetch existing tasks from Microsoft To‑Do via API.
+			const existingTasks = await fetchTasks(this.settings, accessToken);
 			let newTasksCount = 0;
-
-			// Add each task to Microsoft To-Do
+		
+			// Loop over each note task.
 			for (const task of noteTasks) {
 				const existingTask = existingTasks.get(task.title);
 				if (existingTask) {
-					if (task.complete && existingTask.status === "notStarted") {
-						await this.updateTaskInMicrosoftToDo(accessToken, existingTask.id, true);
+					// If the task exists and the note marks it as complete while its status is not complete, update it.
+					if (task.complete && existingTask.status !== "completed") {
+						await updateTask(this.settings, accessToken, existingTask.id, true);
 					} else {
-						console.log(`Task already exists: ${task}`);
+						console.log(`Task already exists: ${task.title}`);
 					}
 					continue;
-				} 
-				await this.createTaskInMicrosoftToDo(accessToken, task.title);
+				}
+			
+				// If the task doesn't exist, create it with the appropriate status.
+				const initialStatus = task.complete ? "completed" : "notStarted";
+				await createTask(this.settings, accessToken, task.title, initialStatus);
 				newTasksCount++;
 			}
 
@@ -580,27 +570,6 @@ export default class TaskSyncerPlugin extends Plugin {
 			console.error("Error syncing tasks:", error);
 			this.notify("Error syncing tasks. Check the console for details.", "error");
 		}
-	}
-
-	// Create a task in Microsoft To-Do using the Graph API.
-	async createTaskInMicrosoftToDo(accessToken: string, taskTitle: string): Promise<void> {
-		const response = await requestUrl({
-			url: `https://graph.microsoft.com/v1.0/me/todo/lists/${this.settings.selectedTaskListId}/tasks`,
-			method: "POST",
-			headers: {
-				"Authorization": `Bearer ${accessToken}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				title: taskTitle,
-			}),
-		});
-
-		if (response.status !== 201) {
-			throw new Error(`Failed to create task: ${response.text}`);
-		}
-
-		console.log(`Task created: ${taskTitle}`);
 	}
 
 	async gatherTasks(): Promise<Map<string, string>> {
@@ -652,33 +621,6 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 
 		return tasksMap;
-	}
-
-	async updateTaskInMicrosoftToDo(accessToken: string, taskId: string, complete: boolean): Promise<void> {
-		const newStatus = complete ? "completed" : "notStarted";
-		const response = await requestUrl({
-			url: `https://graph.microsoft.com/v1.0/me/todo/lists/${this.settings.selectedTaskListId}/tasks/${taskId}`,
-			method: "PATCH",
-			headers: {
-				"Authorization": `Bearer ${accessToken}`,
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				status: newStatus
-			}),
-		});
-		if (response.status !== 200) {
-			throw new Error(`Failed to update task: ${response.text}`);
-		}
-		console.log(`Task ${taskId} updated to status: ${newStatus}`);
-	}
-	async syncTasksBothWay(): Promise<void> {
-		console.log("Syncing tasks both ways...");
-		const localTasks = await this.gatherTasks();
-		const msTasks = await this.getTasksFromSelectedList();
-		console.log("Local Tasks:", localTasks);
-		console.log("Microsoft Tasks:", msTasks);
-
 	}
 
 	// TODO: Implement this method
