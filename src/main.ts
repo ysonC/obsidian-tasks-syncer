@@ -14,12 +14,21 @@ import { TaskTitleModal } from "src/task-title-modal";
 import { TaskCompleteModal } from "src/task-complete-modal";
 
 /**
+ * Interface for the task cache.
+ */
+interface TaskCache {
+	tasks: Array<[string, { title: string; status: string; id: string }]>;
+	lastUpdated: number;
+}
+
+/**
  * Main plugin class for syncing tasks between Obsidian and Microsoft To‑Do.
  */
 export default class TaskSyncerPlugin extends Plugin {
 	settings: MyTodoSettings;
 	tokenFilePath: string;
 	authManager: AuthManager;
+	taskCache: TaskCache | null = null;
 
 	/**
 	 * Displays a notification to the user.
@@ -245,6 +254,21 @@ export default class TaskSyncerPlugin extends Plugin {
 						"Error organizing tasks. Check the console for details.",
 						"error",
 					);
+				}
+			},
+		});
+
+		this.addCommand({
+			id: "testing",
+			name: "Testing",
+			callback: async () => {
+				try {
+					console.log("Testing");
+					await this.refreshTaskCache();
+					this.taskCache = await this.loadData();
+					console.log("Loaded data:", this.taskCache);
+				} catch (error) {
+					console.error("Error organizing tasks:", error);
 				}
 			},
 		});
@@ -545,6 +569,40 @@ export default class TaskSyncerPlugin extends Plugin {
 				await this.refreshSidebarView();
 			},
 		).open();
+	}
+
+	async refreshTaskCache(): Promise<
+		Map<string, { title: string; status: string; id: string }>
+	> {
+		if (!this.settings.selectedTaskListId) {
+			throw new Error(
+				"No task list selected. Please choose one in settings.",
+			);
+		}
+
+		try {
+			const tokenData = await this.authManager.getToken();
+			const accessToken = tokenData.accessToken;
+			const tasks = await fetchTasks(this.settings, accessToken);
+			console.log("Fetched Tasks:", tasks);
+
+			// Load the current data (or initialize as an empty object if nothing exists)
+			const currentData = (await this.loadData()) || {};
+
+			// Update only the tasks section and add a timestamp
+			currentData.tasks = Array.from(tasks.entries());
+			currentData.lastUpdated = Date.now();
+
+			// Save the updated data back without overwriting any other properties
+			await this.saveData(currentData);
+
+			// Optionally update your in-memory cache too
+			this.taskCache = currentData;
+			return tasks;
+		} catch (error) {
+			console.error("Error fetching tasks:", error);
+			throw error;
+		}
 	}
 
 	// TODO: Implement this method
