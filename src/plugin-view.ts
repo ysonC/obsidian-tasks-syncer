@@ -43,20 +43,29 @@ export class TaskSidebarView extends ItemView {
 			return;
 		}
 
-		tasks.forEach((task) => {
-			const line = container.createEl("div", { cls: "task-line" });
+		Array.from(tasks.values())
+			.sort((a, b) => {
+				// Move completed tasks to the bottom
+				if (a.status === "completed" && b.status !== "completed")
+					return 1;
+				if (a.status !== "completed" && b.status === "completed")
+					return -1;
+				return 0; // Keep original order otherwise
+			})
+			.forEach((task) => {
+				const line = container.createEl("div", { cls: "task-line" });
 
-			const checkbox = line.createEl("input", {
-				type: "checkbox",
-			}) as HTMLInputElement;
+				const checkbox = line.createEl("input", {
+					type: "checkbox",
+				}) as HTMLInputElement;
 
-			checkbox.checked = task.status === "completed";
-			checkbox.disabled = true;
+				checkbox.checked = task.status === "completed";
+				checkbox.disabled = true;
 
-			line.createEl("span", {
-				text: task.title,
+				line.createEl("span", {
+					text: task.title,
+				});
 			});
-		});
 	}
 	async onClose() {
 		// Optional cleanup
