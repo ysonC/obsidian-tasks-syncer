@@ -99,6 +99,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Login to Microsoft To-Do (Interactive)",
 			callback: async () => {
 				try {
+					this.notify("Logging in...");
 					await this.getAccessToken();
 					this.notify("Logged in successfully!", "success");
 				} catch (error) {
@@ -130,6 +131,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Get Tasks from Selected List",
 			callback: async () => {
 				try {
+					this.notify("Fetching tasks...");
 					await this.getTasksFromSelectedList();
 					this.notify("Tasks fetched successfully!", "success");
 				} catch (error) {
@@ -145,8 +147,9 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Push Tasks to Microsoft To-Do",
 			callback: async () => {
 				try {
-					await this.pushTasksFromNote();
-					this.notify("Tasks pushed successfully!", "success");
+					this.notify("Syncing tasks to Microsoft To-Do...");
+					const tasksCount = await this.pushTasksFromNote();
+					this.notify(`Tasks synced successfully! ${tasksCount} new tasks added.`, "success");
 					await this.refreshSidebarView();
 				} catch (error) {
 					console.error("Error pushing tasks:", error);
@@ -282,14 +285,6 @@ export default class TaskSyncerPlugin extends Plugin {
 				},
 			});
 
-			// Optionally clear cookies before loading the URL.
-			// authWindow.webContents.session.clearStorageData({ storages: ["cookies"] })
-			//   .then(() => authWindow.loadURL(authUrl))
-			//   .catch(err => {
-			//     console.error("Error clearing cookies:", err);
-			//     authWindow.loadURL(authUrl);
-			//   });
-
 			authWindow.loadURL(authUrl);
 
 			authWindow.webContents.on("will-redirect", async (event, url) => {
@@ -384,12 +379,10 @@ export default class TaskSyncerPlugin extends Plugin {
 
 	// Use the existing fetchTasks API for tasks in the selected list.
 	async getTasksFromSelectedList(): Promise<Map<string, { title: string, status: string, id: string }>> {
-		this.notify("Fetching tasks from selected list...");
-		const msTasks = new Map<string, { title: string, status: string, id: string }>();
 		if (!this.settings.selectedTaskListId) {
-			this.notify("No task list selected. Please choose one in settings.", "warning");
-			return msTasks;
+			throw new Error("No task list selected. Please choose one in settings.");
 		}
+
 		try {
 			const tokenData = await this.getToken();
 			const accessToken = tokenData.accessToken;
@@ -399,25 +392,21 @@ export default class TaskSyncerPlugin extends Plugin {
 			return tasks;
 		} catch (error) {
 			console.error("Error fetching tasks:", error);
-			this.notify("Error fetching tasks. Check the console for details.", "error");
+			throw error;
 		}
-		return msTasks;
 	}
 
-	async pushTasksFromNote(): Promise<void> {
-		this.notify("Syncing tasks to Microsoft To-Do...");
+	async pushTasksFromNote(): Promise<number> {
 
 		// Ensure a task list is selected.
 		if (!this.settings.selectedTaskListId) {
-			this.notify("No task list selected. Please choose one in settings.", "warning");
-			return;
+			throw new Error("No task list selected. Please choose one in settings.");
 		}
 
 		// Get the active note.
 		const activeFile = this.app.workspace.getActiveFile();
 		if (!activeFile) {
-			this.notify("No active note found. Open a note with tasks.", "warning");
-			return;
+			throw new Error("No active file found.");
 		}
 
 		// Read note content and extract tasks using a regex.
@@ -431,8 +420,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			noteTasks.push({ title, complete });
 		}
 		if (noteTasks.length === 0) {
-			this.notify("No tasks found in this note.", "info");
-			return;
+			throw new Error("No tasks found in the active note.");
 		}
 
 		try {
@@ -461,12 +449,11 @@ export default class TaskSyncerPlugin extends Plugin {
 				await createTask(this.settings, accessToken, task.title, initialStatus);
 				newTasksCount++;
 			}
-
-			this.notify(`Synced ${newTasksCount} new tasks to Microsoft To-Do!`, "success");
 			console.log("Synced Tasks:", noteTasks);
+			return newTasksCount;
 		} catch (error) {
 			console.error("Error syncing tasks:", error);
-			this.notify("Error syncing tasks. Check the console for details.", "error");
+			throw error;
 		}
 	}
 
@@ -510,12 +497,10 @@ export default class TaskSyncerPlugin extends Plugin {
 		const targetFile = this.app.vault.getAbstractFileByPath(noteName);
 		if (!targetFile) {
 			await this.app.vault.create(noteName, newContent);
-			this.notify("Tasks List created successfully!", "success");
 		} else if (targetFile instanceof TFile) {
 			await this.app.vault.modify(targetFile, newContent);
-			this.notify("Tasks List updated successfully!", "success");
 		} else {
-			this.notify("Error: Tasks note is not a file.", "error");
+			throw new Error("Unexpected file type for Tasks List");
 		}
 
 		return tasksMap;
