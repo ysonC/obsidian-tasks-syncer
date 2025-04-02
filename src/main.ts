@@ -374,13 +374,12 @@ export default class TaskSyncerPlugin extends Plugin {
 			);
 		}
 
+		if (this.taskCache && this.taskCache.tasks) {
+			console.log("Using cached tasks:", this.taskCache.tasks);
+			return new Map(this.taskCache.tasks);
+		}
 		try {
-			const tokenData = await this.authManager.getToken();
-			const accessToken = tokenData.accessToken;
-			// fetchTasks already returns a Map<string, { title, status, id }>
-			const tasks = await fetchTasks(this.settings, accessToken);
-			console.log("Fetched Tasks:", tasks);
-			return tasks;
+			return await this.refreshTaskCache();
 		} catch (error) {
 			console.error("Error fetching tasks:", error);
 			throw error;
@@ -487,6 +486,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			}
 
 			await createTask(this.settings, accessToken, task);
+			await this.refreshTaskCache();
 			console.log("Synced Tasks:", task);
 		} catch (error) {
 			console.error("Error syncing tasks:", error);
@@ -565,6 +565,8 @@ export default class TaskSyncerPlugin extends Plugin {
 					`Task "${task.title}" marked as complete and synced.`,
 					"success",
 				);
+
+				await this.refreshTaskCache();
 				// Optionally refresh the sidebar view.
 				await this.refreshSidebarView();
 			},

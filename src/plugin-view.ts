@@ -34,7 +34,7 @@ export class TaskSidebarView extends ItemView {
 
 		container.createEl("h3", { text: "Tasks" });
 
-		const tasks = await this.plugin.getTasksFromSelectedList();
+		const tasks = await this.plugin.refreshTaskCache();
 
 		if (tasks.size === 0) {
 			container.createEl("p", {
