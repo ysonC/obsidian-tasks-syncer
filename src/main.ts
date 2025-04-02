@@ -124,21 +124,6 @@ export default class TaskSyncerPlugin extends Plugin {
 			},
 		});
 
-		// Register command to fetch task lists.
-		this.addCommand({
-			id: "get-microsoft-todo-task-lists",
-			name: "Get Microsoft To-Do Task Lists",
-			callback: async () => {
-				try {
-					await this.getTaskLists();
-					this.notify("Task lists fetched successfully!", "success");
-				} catch (error) {
-					console.error("Error fetching task lists:", error);
-					this.notify("Error fetching task lists. Check the console for details.", "error");
-				}
-			},
-		});
-
 		// Register command to fetch task from selected list.
 		this.addCommand({
 			id: "get-tasks-from-selected-list",
@@ -183,17 +168,6 @@ export default class TaskSyncerPlugin extends Plugin {
 					this.notify("Error organizing tasks. Check the console for details.", "error");
 				}
 			},
-		});
-
-		// Add a ribbon icon that fetches task lists.
-		this.addRibbonIcon("dice", "Get Microsoft To-Do Task Lists", async () => {
-			try {
-				await this.getTaskLists();
-				this.notify("Task lists fetched successfully!", "success");
-			} catch (error) {
-				console.error("Error fetching task lists:", error);
-				this.notify("Error fetching task lists. Check the console for details.");
-			}
 		});
 	}
 
@@ -405,41 +379,6 @@ export default class TaskSyncerPlugin extends Plugin {
 		} catch (err) {
 			console.error("Error loading task lists:", err);
 			this.notify("Error loading task lists. Check the console for details.", "error");
-		}
-	}
-
-	// Fetches task lists from Microsoft Graph using a refreshed access token.
-	async getTaskLists(): Promise<void> {
-		try {
-			// Check if a token cache exists.
-			const tokenData = await this.getToken();
-			const accessToken = tokenData.accessToken;
-
-			const response = await requestUrl({
-				url: "https://graph.microsoft.com/v1.0/me/todo/lists",
-				method: "GET",
-				headers: { "Authorization": `Bearer ${accessToken}` },
-			});
-
-			if (response.status !== 200) {
-				throw new Error("Failed to fetch task lists: " + response.text);
-			}
-
-			const data = response.json;
-			let listsText = "Your Microsoft To-Do Lists:\n";
-			if (data.value && data.value.length > 0) {
-				for (const list of data.value) {
-					listsText += `- ${list.displayName}\n`;
-				}
-			} else {
-				listsText += "No task lists found.";
-			}
-
-			this.notify(listsText);
-			console.log("Task Lists:", listsText);
-		} catch (error) {
-			console.error("Error fetching task lists:", error);
-			this.notify("Error fetching task lists. Check the console for details.", "error");
 		}
 	}
 
