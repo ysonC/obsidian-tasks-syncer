@@ -390,31 +390,18 @@ export default class TaskSyncerPlugin extends Plugin {
 	async loadAvailableTaskLists(): Promise<void> {
 		this.notify("Loading task lists...");
 		try {
-			// Refresh token (or acquire a new token) for Graph API call.
 			const tokenData = await this.getToken();
 			const accessToken = tokenData.accessToken;
 
-			const response = await requestUrl({
-				url: "https://graph.microsoft.com/v1.0/me/todo/lists",
-				method: "GET",
-				headers: { "Authorization": `Bearer ${accessToken}` },
-			});
+			const listArray = await fetchTaskLists(accessToken);
+			console.log("Fetched Task Lists:", listArray);
 
-			if (response.status !== 200) {
-				throw new Error("Failed to fetch task lists: " + response.text);
-			}
+			this.settings.taskLists = listArray.map((list) => ({
+				id: list.id,
+				displayName: list.title,
+			}));
 
-			const data = response.json;
-			if (data.value && Array.isArray(data.value)) {
-				this.settings.taskLists = data.value.map((list: any) => ({
-					id: list.id,
-					displayName: list.displayName,
-				}));
-				console.log("Fetched Task Lists:", this.settings.taskLists);
-				this.notify("Task lists loaded successfully!", "success");
-			} else {
-				console.warn("No task lists found.");
-			}
+			this.notify("Task lists loaded successfully!", "success");
 		} catch (err) {
 			console.error("Error loading task lists:", err);
 			this.notify("Error loading task lists. Check the console for details.", "error");
@@ -480,7 +467,7 @@ export default class TaskSyncerPlugin extends Plugin {
 
 	async pushTasksFromNote(): Promise<void> {
 		this.notify("Syncing tasks to Microsoft To-Do...");
-		
+
 		// Ensure a task list is selected.
 		if (!this.settings.selectedTaskListId) {
 			this.notify("No task list selected. Please choose one in settings.", "warning");
@@ -493,7 +480,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			this.notify("No active note found. Open a note with tasks.", "warning");
 			return;
 		}
-		
+
 		// Read note content and extract tasks using a regex.
 		const fileContent = await this.app.vault.read(activeFile);
 		const taskRegex = /^-\s*\[( |x)\]\s+(.+)$/gm;
@@ -508,7 +495,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			this.notify("No tasks found in this note.", "info");
 			return;
 		}
-		
+
 		try {
 			// Get a fresh access token.
 			const tokenData = await this.refreshAccessTokenWithCCA();
@@ -516,7 +503,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			// Fetch existing tasks from Microsoft To‑Do via API.
 			const existingTasks = await fetchTasks(this.settings, accessToken);
 			let newTasksCount = 0;
-		
+
 			// Loop over each note task.
 			for (const task of noteTasks) {
 				const existingTask = existingTasks.get(task.title);
@@ -529,7 +516,7 @@ export default class TaskSyncerPlugin extends Plugin {
 					}
 					continue;
 				}
-			
+
 				// If the task doesn't exist, create it with the appropriate status.
 				const initialStatus = task.complete ? "completed" : "notStarted";
 				await createTask(this.settings, accessToken, task.title, initialStatus);

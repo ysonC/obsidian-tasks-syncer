@@ -106,7 +106,7 @@ export async function updateTask(
  */
 export async function fetchTaskLists(
 	accessToken: string
-): Promise<Map<string, { title: string, status: string, id: string }>> {
+): Promise<Array<{ title: string, id: string }>> {
 	const response = await requestUrl({
 		url: "https://graph.microsoft.com/v1.0/me/todo/lists",
 		method: "GET",
@@ -118,16 +118,11 @@ export async function fetchTaskLists(
 	}
 
 	const data = response.json;
-	const taskLists = new Map<string, { title: string, status: string, id: string }>();
+	const taskLists = new Array<{ title: string, id: string }>();
 
 	if (data.value && Array.isArray(data.value)) {
 		for (const list of data.value) {
-			// Using list.displayName as the title, and setting a default status (empty string)
-			taskLists.set(list.displayName, {
-				title: list.displayName,
-				status: "", // Default value since task lists don't include a status
-				id: list.id
-			});
+			taskLists.push({ title: list.displayName, id: list.id });
 		}
 	}
 
