@@ -10,6 +10,8 @@ import {
 import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "src/plugin-view";
 import { fetchTasks, createTask, updateTask, fetchTaskLists } from "src/api";
 import { AuthManager } from "src/auth";
+import { TaskTitleModal } from "src/task-title-modal";
+import { TaskCompleteModal } from "src/task-complete-modal";
 
 /**
  * Main plugin class for syncing tasks between Obsidian and Microsoft To‑Do.
@@ -170,8 +172,8 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		// Register command to sync task lists for the current note.
 		this.addCommand({
-			id: "push-tasks-to-microsoft-todo",
-			name: "Push Tasks to Microsoft To-Do",
+			id: "push-all-tasks-from-note",
+			name: "Push All Tasks from Note to Microsoft To-Do",
 			callback: async () => {
 				try {
 					this.notify("Syncing tasks to Microsoft To-Do...");
@@ -185,6 +187,74 @@ export default class TaskSyncerPlugin extends Plugin {
 					console.error("Error pushing tasks:", error);
 					this.notify(
 						"Error pushing tasks. Check the console for details.",
+						"error",
+					);
+				}
+			},
+		});
+
+		this.addCommand({
+			id: "push-one-task",
+			name: "Create and push Task",
+			callback: async () => {
+				new TaskTitleModal(this.app, async (taskTitle: string) => {
+					try {
+						this.notify("Syncing tasks to Microsoft To-Do...");
+						await this.pushOneTask(taskTitle);
+						this.notify(`Tasks synced successfully!`, "success");
+						await this.refreshSidebarView();
+					} catch (error) {
+						console.error("Error pushing tasks:", error);
+						this.notify(
+							"Error pushing tasks. Check the console for details.",
+							"error",
+						);
+					}
+				}).open();
+			},
+		});
+
+		this.addCommand({
+			id: "show-not-started-tasks",
+			name: "Show Not Started Tasks List",
+			callback: async () => {
+				try {
+					this.notify("Opening task list...");
+					const tasksMap = await this.getTasksFromSelectedList();
+					const notStartedTasks = Array.from(
+						tasksMap.values(),
+					).filter((task) => task.status !== "completed");
+
+					new TaskCompleteModal(
+						this.app,
+						notStartedTasks,
+						async (task: {
+							title: string;
+							status: string;
+							id: string;
+						}) => {
+							// Get a valid token.
+							const tokenData = await this.authManager.getToken();
+							const accessToken = tokenData.accessToken;
+							// Mark the selected task as complete.
+							await updateTask(
+								this.settings,
+								accessToken,
+								task.id,
+								true,
+							);
+							this.notify(
+								`Task "${task.title}" marked as complete and synced.`,
+								"success",
+							);
+							// Optionally refresh the sidebar view.
+							await this.refreshSidebarView();
+						},
+					).open();
+				} catch (error) {
+					console.error("Error completing task:", error);
+					this.notify(
+						"Error completing task. Check the console for details.",
 						"error",
 					);
 				}
@@ -395,6 +465,35 @@ export default class TaskSyncerPlugin extends Plugin {
 			}
 			console.log("Synced Tasks:", noteTasks);
 			return newTasksCount;
+		} catch (error) {
+			console.error("Error syncing tasks:", error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Pushes a single task to selected list in Microsoft To‑Do.
+	 * @param task - The task title text to push.
+	 */
+	async pushOneTask(task: string) {
+		if (!this.settings.selectedTaskListId) {
+			throw new Error(
+				"No task list selected. Please choose one in settings.",
+			);
+		}
+
+		try {
+			const tokenData = await this.authManager.getToken();
+			const accessToken = tokenData.accessToken;
+			const existingTasks = await fetchTasks(this.settings, accessToken);
+			const existingTask = existingTasks.get(task);
+
+			if (existingTask) {
+				console.log(`Task already exists: ${task}`);
+			}
+
+			await createTask(this.settings, accessToken, task);
+			console.log("Synced Tasks:", task);
 		} catch (error) {
 			console.error("Error syncing tasks:", error);
 			throw error;
