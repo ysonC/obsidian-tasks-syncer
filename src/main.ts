@@ -220,37 +220,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				try {
 					this.notify("Opening task list...");
-					const tasksMap = await this.getTasksFromSelectedList();
-					const notStartedTasks = Array.from(
-						tasksMap.values(),
-					).filter((task) => task.status !== "completed");
-
-					new TaskCompleteModal(
-						this.app,
-						notStartedTasks,
-						async (task: {
-							title: string;
-							status: string;
-							id: string;
-						}) => {
-							// Get a valid token.
-							const tokenData = await this.authManager.getToken();
-							const accessToken = tokenData.accessToken;
-							// Mark the selected task as complete.
-							await updateTask(
-								this.settings,
-								accessToken,
-								task.id,
-								true,
-							);
-							this.notify(
-								`Task "${task.title}" marked as complete and synced.`,
-								"success",
-							);
-							// Optionally refresh the sidebar view.
-							await this.refreshSidebarView();
-						},
-					).open();
+					await this.openTaskCompleteModal();
 				} catch (error) {
 					console.error("Error completing task:", error);
 					this.notify(
@@ -551,6 +521,30 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 
 		return tasksMap;
+	}
+
+	async openTaskCompleteModal() {
+		const tasksMap = await this.getTasksFromSelectedList();
+		const notStartedTasks = Array.from(tasksMap.values()).filter(
+			(task) => task.status !== "completed",
+		);
+
+		new TaskCompleteModal(
+			this.app,
+			notStartedTasks,
+			async (task: { title: string; status: string; id: string }) => {
+				const tokenData = await this.authManager.getToken();
+				const accessToken = tokenData.accessToken;
+
+				await updateTask(this.settings, accessToken, task.id, true);
+				this.notify(
+					`Task "${task.title}" marked as complete and synced.`,
+					"success",
+				);
+				// Optionally refresh the sidebar view.
+				await this.refreshSidebarView();
+			},
+		).open();
 	}
 
 	// TODO: Implement this method
