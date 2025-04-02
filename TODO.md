@@ -1,8 +1,8 @@
 # Todo
 
 ## main.ts
-- [>] Separate all api calls into a separate file
-- [>] Separate all authentication calls into a separate file
+- [x] Separate all api calls into a separate file
+- [x] Separate all authentication calls into a separate file
 
 ## plugin-view.ts
 - [x] Add check to see if task is already in the list 

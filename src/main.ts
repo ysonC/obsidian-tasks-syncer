@@ -1,25 +1,16 @@
-import { Plugin, Notice, requestUrl, TFile } from "obsidian";
-import { ConfidentialClientApplication, Configuration } from "@azure/msal-node";
+import { Plugin, Notice, TFile } from "obsidian";
 import * as fs from "fs";
 import * as dotenv from "dotenv";
-import { BrowserWindow } from "@electron/remote";
 import * as path from "path";
 import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "src/setting";
 import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "src/plugin-view";
-import { fetchTasks, createTask, updateTask, fetchTaskLists, MSTask } from "src/api";
-
-// Define the cache directory and OAuth constants.
-const AUTHORITY = "https://login.microsoftonline.com/consumers";
-const REDIRECT_URI = "http://localhost:5000"; // Must match your Azure registration
-const SCOPES = ["Tasks.ReadWrite", "offline_access"];
+import { fetchTasks, createTask, updateTask, fetchTaskLists } from "src/api";
+import { AuthManager } from "src/auth";
 
 export default class TaskSyncerPlugin extends Plugin {
 	settings: MyTodoSettings;
 	tokenFilePath: string;
-	cca: ConfidentialClientApplication;
-	clientId: string;
-	clientSecret: string;
-	redirectUrl: string;
+	authManager: AuthManager;
 
 	// Unified notification helper.
 	private notify(message: string, type: "error" | "warning" | "success" | "info" = "info"): void {
@@ -61,16 +52,18 @@ export default class TaskSyncerPlugin extends Plugin {
 		this.initializeCommand();
 
 		// 5. Initialize the MSAL client
-		this.initClient().catch((err) => {
-			console.error("Error initializing MSAL client:", err);
-			this.notify("Error initializing MSAL client. Check the console for details.", "error");
-		});
+		this.tokenFilePath = `${pluginPath}/token_cache.json`;
+		this.authManager = new AuthManager(
+			this.settings.clientId,
+			this.settings.clientSecret,
+			this.settings.redirectUrl,
+			this.tokenFilePath
+		);
 
 		// 6. Set up the token cache.
-		this.tokenFilePath = `${pluginPath}/token_cache.json`;
 		if (fs.existsSync(this.tokenFilePath)) {
 			const cacheData = fs.readFileSync(this.tokenFilePath, "utf8");
-			this.cca.getTokenCache().deserialize(cacheData);
+			this.authManager.cca.getTokenCache().deserialize(cacheData);
 			console.log("Token cache loaded from file.");
 		}
 
@@ -100,7 +93,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				try {
 					this.notify("Logging in...");
-					await this.getAccessToken();
+					await this.authManager.getAccessToken();
 					this.notify("Logged in successfully!", "success");
 				} catch (error) {
 					console.error("Authentication error:", error);
@@ -115,7 +108,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Refresh Microsoft To-Do Token",
 			callback: async () => {
 				try {
-					const tokenData = await this.refreshAccessTokenWithCCA();
+					const tokenData = await this.authManager.refreshAccessTokenWithCCA();
 					this.notify("Token refreshed successfully!", "success");
 					console.log("New Access Token:", tokenData.accessToken);
 				} catch (error) {
@@ -211,31 +204,6 @@ export default class TaskSyncerPlugin extends Plugin {
 		this.app.workspace.revealLeaf(rightLeaf);
 	}
 
-	// Initialize client pca
-	async initClient(): Promise<void> {
-		// Load and check the client ID and secret
-		this.clientId = this.settings.clientId;
-		this.clientSecret = this.settings.clientSecret;
-		this.redirectUrl = this.settings.redirectUrl;
-		if (!this.clientId || !this.clientSecret || !this.redirectUrl) {
-			throw new Error("Client ID, Client ID, client secret, or redirect URL not set.");
-		}
-
-		try {
-			// Initialize the MSAL client
-			const config: Configuration = {
-				auth: {
-					clientId: this.clientId,
-					authority: AUTHORITY,
-					clientSecret: this.clientSecret,
-				},
-			};
-			this.cca = new ConfidentialClientApplication(config);
-		} catch (error) {
-			throw new Error("Error initializing MSAL client:" + error.message);
-		}
-	}
-
 	// Loads plugin settings from the Obsidian vault.
 	async loadSettings(): Promise<void> {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
@@ -246,120 +214,11 @@ export default class TaskSyncerPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	// Ensures token cache is available
-	async getToken(): Promise<{ accessToken: string }> {
-		let tokenData;
-		if (fs.existsSync(this.tokenFilePath)) {
-			tokenData = await this.refreshAccessTokenWithCCA();
-		} else {
-			new Notice("No token cache found. Opening login window...");
-			tokenData = await this.getAccessToken();
-		}
-		return tokenData;
-	}
-
-	// Saves the MSAL token cache to disk.
-	private saveTokenCache(): void {
-		const tokenCacheSerialized = this.cca.getTokenCache().serialize();
-		fs.writeFileSync(this.tokenFilePath, tokenCacheSerialized);
-	}
-
-	// Interactive login: Opens a BrowserWindow to let the user log in, exchanges the auth code for tokens,
-	// and saves the token cache.
-	async getAccessToken(): Promise<{ accessToken: string }> {
-		return new Promise((resolve, reject) => {
-			const authUrl =
-				`${AUTHORITY}/oauth2/v2.0/authorize?client_id=${this.clientId}` +
-				`&response_type=code` +
-				`&redirect_uri=${encodeURIComponent(REDIRECT_URI)}` +
-				`&response_mode=query` +
-				`&scope=${encodeURIComponent(SCOPES.join(" "))}` +
-				`&prompt=consent`;
-
-			const authWindow = new BrowserWindow({
-				width: 600,
-				height: 700,
-				webPreferences: {
-					nodeIntegration: false,
-					contextIsolation: true,
-				},
-			});
-
-			authWindow.loadURL(authUrl);
-
-			authWindow.webContents.on("will-redirect", async (event, url) => {
-				console.log("Will redirect to:", url);
-				try {
-					const redirectURL = new URL(url);
-					const error = redirectURL.searchParams.get("error");
-					if (error) throw new Error("OAuth error: " + error);
-
-					const authCode = redirectURL.searchParams.get("code");
-					if (!authCode) return; // If no auth code, exit early.
-
-					event.preventDefault();
-					authWindow.close();
-
-					const tokenRequest = {
-						code: authCode,
-						scopes: SCOPES,
-						redirectUri: REDIRECT_URI,
-					};
-					const tokenResponse = await this.cca.acquireTokenByCode(tokenRequest);
-					if (!tokenResponse) throw new Error("No token response received.");
-					// console.log("Token response:", tokenResponse);
-
-					this.saveTokenCache();
-					resolve({ accessToken: tokenResponse.accessToken });
-				} catch (err) {
-					console.error("Error during token exchange:", err);
-					if (!authWindow.isDestroyed()) authWindow.close();
-					reject(err);
-				}
-			});
-		});
-	}
-
-	// Refresh tokens by loading the token cache, extracting the refresh token, and calling acquireTokenByRefreshToken.
-	async refreshAccessTokenWithCCA(): Promise<{ accessToken: string }> {
-		if (!fs.existsSync(this.tokenFilePath)) {
-			throw new Error("No token cache found. Please login first.");
-		}
-
-		const cacheData = fs.readFileSync(this.tokenFilePath, "utf8");
-		this.cca.getTokenCache().deserialize(cacheData);
-
-		const tokenCacheSerialized = this.cca.getTokenCache().serialize();
-		const parsedCache = JSON.parse(tokenCacheSerialized);
-		if (!parsedCache.RefreshToken) {
-			throw new Error("No refresh token found in the cache.");
-		}
-		const refreshTokenObject = parsedCache.RefreshToken;
-		const refreshTokenKey = Object.keys(refreshTokenObject)[0];
-		const refreshToken = refreshTokenObject[refreshTokenKey].secret;
-
-		const tokenRequest = {
-			refreshToken: refreshToken,
-			scopes: SCOPES,
-			redirectUri: REDIRECT_URI,
-		};
-
-		try {
-			const tokenResponse = await this.cca.acquireTokenByRefreshToken(tokenRequest);
-			if (!tokenResponse) throw new Error("No token response received from refresh.");
-			this.saveTokenCache();
-			return { accessToken: tokenResponse.accessToken };
-		} catch (error) {
-			console.error("Error in acquireTokenByRefreshToken:", error);
-			throw error;
-		}
-	}
-
 	// Fetches available Microsoft To-Do task lists and stores them in settings.
 	async loadAvailableTaskLists(): Promise<void> {
 		this.notify("Loading task lists...");
 		try {
-			const tokenData = await this.getToken();
+			const tokenData = await this.authManager.getToken();
 			const accessToken = tokenData.accessToken;
 
 			const listArray = await fetchTaskLists(accessToken);
@@ -384,7 +243,7 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 
 		try {
-			const tokenData = await this.getToken();
+			const tokenData = await this.authManager.getToken();
 			const accessToken = tokenData.accessToken;
 			// fetchTasks already returns a Map<string, { title, status, id }>
 			const tasks = await fetchTasks(this.settings, accessToken);
@@ -425,7 +284,7 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		try {
 			// Get a fresh access token.
-			const tokenData = await this.refreshAccessTokenWithCCA();
+			const tokenData = await this.authManager.getToken()
 			const accessToken = tokenData.accessToken;
 			// Fetch existing tasks from Microsoft To‑Do via API.
 			const existingTasks = await fetchTasks(this.settings, accessToken);
