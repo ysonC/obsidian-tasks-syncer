@@ -85,12 +85,14 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		// 5. Initialize the MSAL client
 		this.tokenFilePath = `${pluginPath}/token_cache.json`;
-		this.authManager = new AuthManager(
-			this.settings.clientId,
-			this.settings.clientSecret,
-			this.settings.redirectUrl,
-			this.tokenFilePath,
-		);
+		if (this.settings.clientId && this.settings.clientSecret) {
+			this.authManager = new AuthManager(
+				this.settings.clientId,
+				this.settings.clientSecret,
+				this.settings.redirectUrl,
+				this.tokenFilePath,
+			);
+		}
 
 		// 6. Set up the token cache.
 		if (fs.existsSync(this.tokenFilePath)) {
