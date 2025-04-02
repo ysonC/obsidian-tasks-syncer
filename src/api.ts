@@ -15,7 +15,7 @@ export interface MSTask {
  */
 export async function fetchTasks(
 	settings: MyTodoSettings,
-	accessToken: string
+	accessToken: string,
 ): Promise<Map<string, MSTask>> {
 	const tasks = new Map<string, MSTask>();
 	const response = await requestUrl({
@@ -50,13 +50,13 @@ export async function createTask(
 	settings: MyTodoSettings,
 	accessToken: string,
 	taskTitle: string,
-	status: string = "notStarted"
+	status: string = "notStarted",
 ): Promise<void> {
 	const response = await requestUrl({
 		url: `https://graph.microsoft.com/v1.0/me/todo/lists/${settings.selectedTaskListId}/tasks`,
 		method: "POST",
 		headers: {
-			"Authorization": `Bearer ${accessToken}`,
+			Authorization: `Bearer ${accessToken}`,
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify({
@@ -81,14 +81,14 @@ export async function updateTask(
 	settings: MyTodoSettings,
 	accessToken: string,
 	taskId: string,
-	complete: boolean
+	complete: boolean,
 ): Promise<void> {
 	const newStatus = complete ? "completed" : "notStarted";
 	const response = await requestUrl({
 		url: `https://graph.microsoft.com/v1.0/me/todo/lists/${settings.selectedTaskListId}/tasks/${taskId}`,
 		method: "PATCH",
 		headers: {
-			"Authorization": `Bearer ${accessToken}`,
+			Authorization: `Bearer ${accessToken}`,
 			"Content-Type": "application/json",
 		},
 		body: JSON.stringify({ status: newStatus }),
@@ -105,8 +105,8 @@ export async function updateTask(
  * @returns A map where each key is the task list title and the value is an object containing title, status (default), and id.
  */
 export async function fetchTaskLists(
-	accessToken: string
-): Promise<Array<{ title: string, id: string }>> {
+	accessToken: string,
+): Promise<Array<{ title: string; id: string }>> {
 	const response = await requestUrl({
 		url: "https://graph.microsoft.com/v1.0/me/todo/lists",
 		method: "GET",
@@ -118,7 +118,7 @@ export async function fetchTaskLists(
 	}
 
 	const data = response.json;
-	const taskLists = new Array<{ title: string, id: string }>();
+	const taskLists = new Array<{ title: string; id: string }>();
 
 	if (data.value && Array.isArray(data.value)) {
 		for (const list of data.value) {

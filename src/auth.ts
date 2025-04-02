@@ -24,7 +24,12 @@ export class AuthManager {
 	 * @param redirectUrl - The redirect URL registered in your Azure AD app.
 	 * @param tokenFilePath - Path to the file where the token cache will be stored.
 	 */
-	constructor(clientId: string, clientSecret: string, redirectUrl: string, tokenFilePath: string) {
+	constructor(
+		clientId: string,
+		clientSecret: string,
+		redirectUrl: string,
+		tokenFilePath: string,
+	) {
 		this.clientId = clientId;
 		this.clientSecret = clientSecret;
 		this.redirectUrl = redirectUrl;
@@ -97,8 +102,10 @@ export class AuthManager {
 						scopes: SCOPES,
 						redirectUri: REDIRECT_URI,
 					};
-					const tokenResponse = await this.cca.acquireTokenByCode(tokenRequest);
-					if (!tokenResponse) throw new Error("No token response received.");
+					const tokenResponse =
+						await this.cca.acquireTokenByCode(tokenRequest);
+					if (!tokenResponse)
+						throw new Error("No token response received.");
 					this.saveTokenCache();
 					resolve({ accessToken: tokenResponse.accessToken });
 				} catch (err) {
@@ -137,8 +144,10 @@ export class AuthManager {
 		};
 
 		try {
-			const tokenResponse = await this.cca.acquireTokenByRefreshToken(tokenRequest);
-			if (!tokenResponse) throw new Error("No token response received from refresh.");
+			const tokenResponse =
+				await this.cca.acquireTokenByRefreshToken(tokenRequest);
+			if (!tokenResponse)
+				throw new Error("No token response received from refresh.");
 			this.saveTokenCache();
 			return { accessToken: tokenResponse.accessToken };
 		} catch (error) {
@@ -159,4 +168,3 @@ export class AuthManager {
 		}
 	}
 }
-

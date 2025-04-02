@@ -37,7 +37,9 @@ export class TaskSidebarView extends ItemView {
 		const tasks = await this.plugin.getTasksFromSelectedList();
 
 		if (tasks.size === 0) {
-			container.createEl("p", { text: "No tasks found or not authenticated." });
+			container.createEl("p", {
+				text: "No tasks found or not authenticated.",
+			});
 			return;
 		}
 
@@ -60,4 +62,3 @@ export class TaskSidebarView extends ItemView {
 		// Optional cleanup
 	}
 }
-

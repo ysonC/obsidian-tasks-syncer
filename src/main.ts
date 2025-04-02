@@ -2,7 +2,11 @@ import { Plugin, Notice, TFile } from "obsidian";
 import * as fs from "fs";
 import * as dotenv from "dotenv";
 import * as path from "path";
-import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "src/setting";
+import {
+	MyTodoSettingTab,
+	DEFAULT_SETTINGS,
+	MyTodoSettings,
+} from "src/setting";
 import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "src/plugin-view";
 import { fetchTasks, createTask, updateTask, fetchTaskLists } from "src/api";
 import { AuthManager } from "src/auth";
@@ -20,7 +24,10 @@ export default class TaskSyncerPlugin extends Plugin {
 	 * @param message - The message to display.
 	 * @param type - The type of notification ("error", "warning", "success", "info").
 	 */
-	private notify(message: string, type: "error" | "warning" | "success" | "info" = "info"): void {
+	private notify(
+		message: string,
+		type: "error" | "warning" | "success" | "info" = "info",
+	): void {
 		let prefix = "";
 		switch (type) {
 			case "error":
@@ -44,7 +51,10 @@ export default class TaskSyncerPlugin extends Plugin {
 	async onload(): Promise<void> {
 		// 0. Load environment variables from the plugin's .env file.
 		const basePath = (this.app.vault.adapter as any).basePath;
-		const pluginPath = path.join(basePath, ".obsidian/plugins/sync-obsidian-todo-plugin");
+		const pluginPath = path.join(
+			basePath,
+			".obsidian/plugins/sync-obsidian-todo-plugin",
+		);
 		dotenv.config({ path: path.join(pluginPath, ".env"), override: true });
 
 		// 1. Load stored settings (or default settings if none exist).
@@ -56,7 +66,8 @@ export default class TaskSyncerPlugin extends Plugin {
 		// 3. Register the sidebar view.
 		this.registerView(
 			VIEW_TYPE_TODO_SIDEBAR,
-			(leaf) => new TaskSidebarView(leaf, this));
+			(leaf) => new TaskSidebarView(leaf, this),
+		);
 
 		// 4. Initialize core components (MSAL client, commands, etc.).
 		this.initializeCommand();
@@ -67,7 +78,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			this.settings.clientId,
 			this.settings.clientSecret,
 			this.settings.redirectUrl,
-			this.tokenFilePath
+			this.tokenFilePath,
 		);
 
 		// 6. Set up the token cache.
@@ -83,19 +94,17 @@ export default class TaskSyncerPlugin extends Plugin {
 		this.notify("Microsoft To-Do Plugin Loaded!", "info");
 	}
 
-
 	/**
 	 * Initializes the MSAL client and registers commands/ribbon icons.
 	 */
 	initializeCommand(): void {
-
 		// Register command to open the sidebar.
 		this.addCommand({
 			id: "open-microsoft-todo-sidebar",
 			name: "Open Microsoft To-Do Sidebar",
 			callback: async () => {
 				this.activateSidebar();
-			}
+			},
 		});
 
 		// Register interactive login command.
@@ -109,7 +118,10 @@ export default class TaskSyncerPlugin extends Plugin {
 					this.notify("Logged in successfully!", "success");
 				} catch (error) {
 					console.error("Authentication error:", error);
-					this.notify("Error logining in! Check the console for details.", "error");
+					this.notify(
+						"Error logining in! Check the console for details.",
+						"error",
+					);
 				}
 			},
 		});
@@ -120,12 +132,16 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Refresh Microsoft To-Do Token",
 			callback: async () => {
 				try {
-					const tokenData = await this.authManager.refreshAccessTokenWithCCA();
+					const tokenData =
+						await this.authManager.refreshAccessTokenWithCCA();
 					this.notify("Token refreshed successfully!", "success");
 					console.log("New Access Token:", tokenData.accessToken);
 				} catch (error) {
 					console.error("Error refreshing token:", error);
-					this.notify("Error refreshing token. Check the console for details.", "error");
+					this.notify(
+						"Error refreshing token. Check the console for details.",
+						"error",
+					);
 				}
 			},
 		});
@@ -140,8 +156,14 @@ export default class TaskSyncerPlugin extends Plugin {
 					await this.getTasksFromSelectedList();
 					this.notify("Tasks fetched successfully!", "success");
 				} catch (error) {
-					console.error("Error fetching tasks from selected list:", error);
-					this.notify("Error fetching tasks. Check the console for details.", "error");
+					console.error(
+						"Error fetching tasks from selected list:",
+						error,
+					);
+					this.notify(
+						"Error fetching tasks. Check the console for details.",
+						"error",
+					);
 				}
 			},
 		});
@@ -154,11 +176,17 @@ export default class TaskSyncerPlugin extends Plugin {
 				try {
 					this.notify("Syncing tasks to Microsoft To-Do...");
 					const tasksCount = await this.pushTasksFromNote();
-					this.notify(`Tasks synced successfully! ${tasksCount} new tasks added.`, "success");
+					this.notify(
+						`Tasks synced successfully! ${tasksCount} new tasks added.`,
+						"success",
+					);
 					await this.refreshSidebarView();
 				} catch (error) {
 					console.error("Error pushing tasks:", error);
-					this.notify("Error pushing tasks. Check the console for details.", "error");
+					this.notify(
+						"Error pushing tasks. Check the console for details.",
+						"error",
+					);
 				}
 			},
 		});
@@ -173,13 +201,15 @@ export default class TaskSyncerPlugin extends Plugin {
 					this.notify("Tasks organized successfully!", "success");
 				} catch (error) {
 					console.error("Error organizing tasks:", error);
-					this.notify("Error organizing tasks. Check the console for details.", "error");
+					this.notify(
+						"Error organizing tasks. Check the console for details.",
+						"error",
+					);
 				}
 			},
 		});
 	}
 
-	
 	/**
 	 * Injects custom CSS styles into the document.
 	 */
@@ -226,7 +256,11 @@ export default class TaskSyncerPlugin extends Plugin {
 	 * Loads plugin settings from the Obsidian vault.
 	 */
 	async loadSettings(): Promise<void> {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign(
+			{},
+			DEFAULT_SETTINGS,
+			await this.loadData(),
+		);
 	}
 
 	/**
@@ -256,7 +290,10 @@ export default class TaskSyncerPlugin extends Plugin {
 			this.notify("Task lists loaded successfully!", "success");
 		} catch (err) {
 			console.error("Error loading task lists:", err);
-			this.notify("Error loading task lists. Check the console for details.", "error");
+			this.notify(
+				"Error loading task lists. Check the console for details.",
+				"error",
+			);
 		}
 	}
 
@@ -264,9 +301,13 @@ export default class TaskSyncerPlugin extends Plugin {
 	 * Fetches tasks from the selected Microsoft To‑Do list.
 	 * @returns A map of task title to an object containing task details.
 	 */
-	async getTasksFromSelectedList(): Promise<Map<string, { title: string, status: string, id: string }>> {
+	async getTasksFromSelectedList(): Promise<
+		Map<string, { title: string; status: string; id: string }>
+	> {
 		if (!this.settings.selectedTaskListId) {
-			throw new Error("No task list selected. Please choose one in settings.");
+			throw new Error(
+				"No task list selected. Please choose one in settings.",
+			);
 		}
 
 		try {
@@ -289,7 +330,9 @@ export default class TaskSyncerPlugin extends Plugin {
 	async pushTasksFromNote(): Promise<number> {
 		// Ensure a task list is selected.
 		if (!this.settings.selectedTaskListId) {
-			throw new Error("No task list selected. Please choose one in settings.");
+			throw new Error(
+				"No task list selected. Please choose one in settings.",
+			);
 		}
 
 		// Get the active note.
@@ -301,7 +344,7 @@ export default class TaskSyncerPlugin extends Plugin {
 		// Read note content and extract tasks using a regex.
 		const fileContent = await this.app.vault.read(activeFile);
 		const taskRegex = /^-\s*\[( |x)\]\s+(.+)$/gm;
-		const noteTasks: Array<{ title: string, complete: boolean }> = [];
+		const noteTasks: Array<{ title: string; complete: boolean }> = [];
 		let match;
 		while ((match = taskRegex.exec(fileContent)) !== null) {
 			const complete = match[1] === "x";
@@ -314,7 +357,7 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		try {
 			// Get a fresh access token.
-			const tokenData = await this.authManager.getToken()
+			const tokenData = await this.authManager.getToken();
 			const accessToken = tokenData.accessToken;
 			// Fetch existing tasks from Microsoft To‑Do via API.
 			const existingTasks = await fetchTasks(this.settings, accessToken);
@@ -326,7 +369,12 @@ export default class TaskSyncerPlugin extends Plugin {
 				if (existingTask) {
 					// If the task exists and the note marks it as complete while its status is not complete, update it.
 					if (task.complete && existingTask.status !== "completed") {
-						await updateTask(this.settings, accessToken, existingTask.id, true);
+						await updateTask(
+							this.settings,
+							accessToken,
+							existingTask.id,
+							true,
+						);
 					} else {
 						console.log(`Task already exists: ${task.title}`);
 					}
@@ -334,8 +382,15 @@ export default class TaskSyncerPlugin extends Plugin {
 				}
 
 				// If the task doesn't exist, create it with the appropriate status.
-				const initialStatus = task.complete ? "completed" : "notStarted";
-				await createTask(this.settings, accessToken, task.title, initialStatus);
+				const initialStatus = task.complete
+					? "completed"
+					: "notStarted";
+				await createTask(
+					this.settings,
+					accessToken,
+					task.title,
+					initialStatus,
+				);
 				newTasksCount++;
 			}
 			console.log("Synced Tasks:", noteTasks);
@@ -382,7 +437,7 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		// Build the new consolidated content.
 		const finalTasks = Array.from(tasksMap.entries()).map(
-			([taskText, state]) => `- ${state} ${taskText}`
+			([taskText, state]) => `- ${state} ${taskText}`,
 		);
 		const newContent = finalTasks.join("\n");
 
@@ -400,7 +455,5 @@ export default class TaskSyncerPlugin extends Plugin {
 	}
 
 	// TODO: Implement this method
-	async refreshSidebarView() {
-	}
+	async refreshSidebarView() {}
 }
-

@@ -36,7 +36,9 @@ export class MyTodoSettingTab extends PluginSettingTab {
 		// Add a section for entering client ID and secret.
 		new Setting(containerEl)
 			.setName("Client Details")
-			.setDesc("Enter the client ID and client secret of your Azure AD app.")
+			.setDesc(
+				"Enter the client ID and client secret of your Azure AD app.",
+			)
 			.addText((text) =>
 				text
 					.setPlaceholder("Client ID")
@@ -44,7 +46,7 @@ export class MyTodoSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.clientId = value;
 						await this.plugin.saveSettings();
-					})
+					}),
 			)
 			.addText((text) =>
 				text
@@ -53,7 +55,7 @@ export class MyTodoSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.clientSecret = value;
 						await this.plugin.saveSettings();
-					})
+					}),
 			);
 
 		// Add a section for URL to redirect to after authentication.
@@ -67,7 +69,7 @@ export class MyTodoSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.redirectUrl = value;
 						await this.plugin.saveSettings();
-					})
+					}),
 			);
 
 		// Add a button to get the task lists.
@@ -84,7 +86,9 @@ export class MyTodoSettingTab extends PluginSettingTab {
 		// Add a dropdown to select the task
 		new Setting(containerEl)
 			.setName("Task List")
-			.setDesc("Select the Microsoft To‑Do list to store your Obsidian tasks.")
+			.setDesc(
+				"Select the Microsoft To‑Do list to store your Obsidian tasks.",
+			)
 			.addDropdown((drop) => {
 				// Add a default option.
 				drop.addOption("", "Select a task list");
@@ -108,4 +112,3 @@ export class MyTodoSettingTab extends PluginSettingTab {
 			});
 	}
 }
-
