@@ -7,12 +7,19 @@ import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "src/plugin-view";
 import { fetchTasks, createTask, updateTask, fetchTaskLists } from "src/api";
 import { AuthManager } from "src/auth";
 
+/**
+ * Main plugin class for syncing tasks between Obsidian and Microsoft To‑Do.
+ */
 export default class TaskSyncerPlugin extends Plugin {
 	settings: MyTodoSettings;
 	tokenFilePath: string;
 	authManager: AuthManager;
 
-	// Unified notification helper.
+	/**
+	 * Displays a notification to the user.
+	 * @param message - The message to display.
+	 * @param type - The type of notification ("error", "warning", "success", "info").
+	 */
 	private notify(message: string, type: "error" | "warning" | "success" | "info" = "info"): void {
 		let prefix = "";
 		switch (type) {
@@ -30,7 +37,10 @@ export default class TaskSyncerPlugin extends Plugin {
 		new Notice(prefix + message);
 	}
 
-	// onload is called when the plugin is activated.
+	/**
+	 * Called when the plugin is activated.
+	 * Loads environment variables, settings, registers views and commands, and initializes authentication.
+	 */
 	async onload(): Promise<void> {
 		// 0. Load environment variables from the plugin's .env file.
 		const basePath = (this.app.vault.adapter as any).basePath;
@@ -74,7 +84,9 @@ export default class TaskSyncerPlugin extends Plugin {
 	}
 
 
-	// Initializes the MSAL client and registers commands/ribbon icon.
+	/**
+	 * Initializes the MSAL client and registers commands/ribbon icons.
+	 */
 	initializeCommand(): void {
 
 		// Register command to open the sidebar.
@@ -167,6 +179,10 @@ export default class TaskSyncerPlugin extends Plugin {
 		});
 	}
 
+	
+	/**
+	 * Injects custom CSS styles into the document.
+	 */
 	injectStyles() {
 		const style = document.createElement("style");
 		style.textContent = `
@@ -189,6 +205,9 @@ export default class TaskSyncerPlugin extends Plugin {
 		document.head.appendChild(style);
 	}
 
+	/**
+	 * Activates the sidebar view.
+	 */
 	async activateSidebar() {
 		const rightLeaf = this.app.workspace.getRightLeaf(false);
 		if (!rightLeaf) {
@@ -203,18 +222,23 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		this.app.workspace.revealLeaf(rightLeaf);
 	}
-
-	// Loads plugin settings from the Obsidian vault.
+	/**
+	 * Loads plugin settings from the Obsidian vault.
+	 */
 	async loadSettings(): Promise<void> {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
 
-	// Saves plugin settings to the Obsidian vault.
+	/**
+	 * Saves plugin settings to the Obsidian vault.
+	 */
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 	}
 
-	// Fetches available Microsoft To-Do task lists and stores them in settings.
+	/**
+	 * Fetches available Microsoft To-Do task lists and updates the plugin settings.
+	 */
 	async loadAvailableTaskLists(): Promise<void> {
 		this.notify("Loading task lists...");
 		try {
@@ -236,7 +260,10 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 	}
 
-	// Use the existing fetchTasks API for tasks in the selected list.
+	/**
+	 * Fetches tasks from the selected Microsoft To‑Do list.
+	 * @returns A map of task title to an object containing task details.
+	 */
 	async getTasksFromSelectedList(): Promise<Map<string, { title: string, status: string, id: string }>> {
 		if (!this.settings.selectedTaskListId) {
 			throw new Error("No task list selected. Please choose one in settings.");
@@ -255,8 +282,11 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 	}
 
+	/**
+	 * Pushes tasks from the active note to Microsoft To‑Do.
+	 * @returns The number of new tasks created.
+	 */
 	async pushTasksFromNote(): Promise<number> {
-
 		// Ensure a task list is selected.
 		if (!this.settings.selectedTaskListId) {
 			throw new Error("No task list selected. Please choose one in settings.");
@@ -316,6 +346,10 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 	}
 
+	/**
+	 * Gathers tasks from all markdown files in the vault and updates (or creates) a consolidated note.
+	 * @returns A map of task text to its current state.
+	 */
 	async gatherTasks(): Promise<Map<string, string>> {
 		const noteName = "Tasks List.md";
 		const markdownFiles = this.app.vault.getMarkdownFiles();
