@@ -11,7 +11,7 @@ import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "src/plugin-view";
 import { fetchTasks, createTask, updateTask, fetchTaskLists } from "src/api";
 import { AuthManager } from "src/auth";
 import { TaskTitleModal } from "src/task-title-modal";
-import { GenericSelectModal } from "src/task-complete-modal";
+import { GenericSelectModal } from "src/select-modal";
 
 /**
  * Interface for the task cache.
