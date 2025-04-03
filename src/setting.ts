@@ -4,7 +4,7 @@ import TaskSyncerPlugin from "src/main";
 export interface MyTodoSettings {
 	selectedTaskListId: string;
 	// A list of available task lists, each with an id and display name.
-	taskLists: Array<{ id: string; displayName: string }>;
+	taskLists: Array<{ id: string; title: string }>;
 	clientId: string;
 	clientSecret: string;
 	redirectUrl: string;
@@ -96,7 +96,7 @@ export class MyTodoSettingTab extends PluginSettingTab {
 				// Populate dropdown with available task lists.
 				if (this.settings.taskLists.length > 0) {
 					this.settings.taskLists.forEach((list) => {
-						drop.addOption(list.id, list.displayName);
+						drop.addOption(list.id, list.title);
 					});
 				} else {
 					// Optionally, inform the user no task lists are available.

@@ -11,7 +11,7 @@ import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "src/plugin-view";
 import { fetchTasks, createTask, updateTask, fetchTaskLists } from "src/api";
 import { AuthManager } from "src/auth";
 import { TaskTitleModal } from "src/task-title-modal";
-import { TaskCompleteModal } from "src/task-complete-modal";
+import { GenericSelectModal } from "src/task-complete-modal";
 
 /**
  * Interface for the task cache.
@@ -19,6 +19,17 @@ import { TaskCompleteModal } from "src/task-complete-modal";
 interface TaskCache {
 	tasks: Array<[string, { title: string; status: string; id: string }]>;
 	lastUpdated: number;
+}
+
+interface TaskItem {
+	title: string;
+	status: string;
+	id: string;
+}
+
+interface TaskList {
+	title: string;
+	id: string;
 }
 
 /**
@@ -242,6 +253,24 @@ export default class TaskSyncerPlugin extends Plugin {
 			},
 		});
 
+		this.addCommand({
+			id: "select-task-list",
+			name: "Select Task List",
+			callback: async () => {
+				try {
+					this.notify("Selecting task list...");
+					await this.openTaskListsModal();
+					this.notify("Task list selected successfully!", "success");
+				} catch (error) {
+					console.error("Error selecting task list:", error);
+					this.notify(
+						"Error selecting task list. Check the console for details.",
+						"error",
+					);
+				}
+			},
+		});
+
 		// Register command to organize tasks from all notes into a single note.
 		this.addCommand({
 			id: "organize-tasks",
@@ -350,7 +379,7 @@ export default class TaskSyncerPlugin extends Plugin {
 
 			this.settings.taskLists = listArray.map((list) => ({
 				id: list.id,
-				displayName: list.title,
+				title: list.title,
 			}));
 
 			this.notify("Task lists loaded successfully!", "success");
@@ -360,6 +389,18 @@ export default class TaskSyncerPlugin extends Plugin {
 				"Error loading task lists. Check the console for details.",
 				"error",
 			);
+		}
+	}
+
+	async getTaskLists(): Promise<TaskList[]> {
+		try {
+			const tokenData = await this.authManager.getToken();
+			const accessToken = tokenData.accessToken;
+			const taskLists = await fetchTaskLists(accessToken);
+			return taskLists;
+		} catch (error) {
+			console.error("Error fetching task lists:", error);
+			throw error;
 		}
 	}
 
@@ -549,15 +590,34 @@ export default class TaskSyncerPlugin extends Plugin {
 		return tasksMap;
 	}
 
+	async openTaskListsModal() {
+		const tasksLists = this.settings.taskLists;
+
+		console.log("Task Lists:", tasksLists);
+		new GenericSelectModal<TaskList>(
+			this.app,
+			tasksLists,
+			(taskList) => taskList.title,
+			async (taskList: TaskList) => {
+				this.settings.selectedTaskListId = taskList.id;
+				await this.saveSettings();
+				await this.refreshTaskCache();
+				// Optionally refresh the sidebar view.
+				await this.refreshSidebarView();
+			},
+		).open();
+	}
+
 	async openTaskCompleteModal() {
 		const tasksMap = await this.getTasksFromSelectedList();
 		const notStartedTasks = Array.from(tasksMap.values()).filter(
 			(task) => task.status !== "completed",
 		);
 
-		new TaskCompleteModal(
+		new GenericSelectModal<TaskItem>(
 			this.app,
 			notStartedTasks,
+			(task) => (task.status !== "completed" ? task.title : ""),
 			async (task: { title: string; status: string; id: string }) => {
 				const tokenData = await this.authManager.getToken();
 				const accessToken = tokenData.accessToken;
@@ -610,5 +670,5 @@ export default class TaskSyncerPlugin extends Plugin {
 	}
 
 	// TODO: Implement this method
-	async refreshSidebarView() {}
+	async refreshSidebarView() { }
 }

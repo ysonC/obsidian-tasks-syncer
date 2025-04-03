@@ -120,6 +120,7 @@ export async function fetchTaskLists(
 	const data = response.json;
 	const taskLists = new Array<{ title: string; id: string }>();
 
+	console.log("Task lists data:", data);
 	if (data.value && Array.isArray(data.value)) {
 		for (const list of data.value) {
 			taskLists.push({ title: list.displayName, id: list.id });
