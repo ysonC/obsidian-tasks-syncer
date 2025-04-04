@@ -2,6 +2,7 @@
 
 - [ ] Optimize the loading speed of the plugin
 - [ ] Optimize the loading of the tasks
+- [ ] Build github actions to build the plugin
 
 ## main.ts
 
