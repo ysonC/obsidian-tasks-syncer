@@ -11,7 +11,13 @@ import {
 	VIEW_TYPE_TODO_SIDEBAR,
 	TaskSidebarView,
 } from "src/right-sidebar-view";
-import { fetchTasks, createTask, updateTask, fetchTaskLists } from "src/api";
+import {
+	fetchTasks,
+	createTask,
+	updateTask,
+	fetchTaskLists,
+	deleteTask,
+} from "src/api";
 import { AuthManager } from "src/auth";
 import { TaskTitleModal } from "src/task-title-modal";
 import { GenericSelectModal } from "src/select-modal";
@@ -295,12 +301,34 @@ export default class TaskSyncerPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "delete-completed-tasks",
+			name: "Delete Completed Tasks",
+			callback: async () => {
+				try {
+					this.notify("Deleting completed tasks...");
+					const deletedCount = await this.deleteAllCompletedTasks();
+					this.notify(
+						`${deletedCount} completed tasks deleted successfully!`,
+						"success",
+					);
+				} catch (error) {
+					console.error("Error deleting completed tasks:", error);
+					this.notify(
+						"Error deleting tasks. Check the console for details.",
+						"error",
+					);
+				}
+			},
+		});
+
+		this.addCommand({
 			id: "testing",
 			name: "Testing",
 			callback: async () => {
 				try {
 					console.log("Testing");
-					await this.refreshSidebarView();
+					this.deleteAllCompletedTasks();
+					this.notify("Task deleted successfully!", "success");
 				} catch (error) {
 					console.error("Error testing:", error);
 				}
@@ -368,15 +396,23 @@ export default class TaskSyncerPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
+	async getAccessToken(): Promise<string> {
+		try {
+			const tokenData = await this.authManager.getToken();
+			return tokenData.accessToken;
+		} catch (error) {
+			console.error("Error fetching access token:", error);
+			throw error;
+		}
+	}
+
 	/**
 	 * Fetches available Microsoft To-Do task lists and updates the plugin settings.
 	 */
 	async loadAvailableTaskLists(): Promise<void> {
 		this.notify("Loading task lists...");
 		try {
-			const tokenData = await this.authManager.getToken();
-			const accessToken = tokenData.accessToken;
-
+			const accessToken = await this.getAccessToken();
 			const listArray = await fetchTaskLists(accessToken);
 			console.log("Fetched Task Lists:", listArray);
 
@@ -397,8 +433,7 @@ export default class TaskSyncerPlugin extends Plugin {
 
 	async getTaskLists(): Promise<TaskList[]> {
 		try {
-			const tokenData = await this.authManager.getToken();
-			const accessToken = tokenData.accessToken;
+			const accessToken = await this.getAccessToken();
 			const taskLists = await fetchTaskLists(accessToken);
 			return taskLists;
 		} catch (error) {
@@ -466,8 +501,7 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		try {
 			// Get a fresh access token.
-			const tokenData = await this.authManager.getToken();
-			const accessToken = tokenData.accessToken;
+			const accessToken = await this.getAccessToken();
 			// Fetch existing tasks from Microsoft To‑Do via API.
 			const existingTasks = await fetchTasks(this.settings, accessToken);
 			let newTasksCount = 0;
@@ -522,8 +556,7 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 
 		try {
-			const tokenData = await this.authManager.getToken();
-			const accessToken = tokenData.accessToken;
+			const accessToken = await this.getAccessToken();
 			const existingTasks = await fetchTasks(this.settings, accessToken);
 			const existingTask = existingTasks.get(task);
 
@@ -532,7 +565,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			}
 
 			await createTask(this.settings, accessToken, task);
-			await this.refreshTaskCache();
+			await this.refreshSidebarView();
 			console.log("Synced Tasks:", task);
 		} catch (error) {
 			console.error("Error syncing tasks:", error);
@@ -604,8 +637,6 @@ export default class TaskSyncerPlugin extends Plugin {
 			async (taskList: TaskList) => {
 				this.settings.selectedTaskListId = taskList.id;
 				await this.saveSettings();
-				await this.refreshTaskCache();
-				// Optionally refresh the sidebar view.
 				await this.refreshSidebarView();
 			},
 		).open();
@@ -622,8 +653,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			notStartedTasks,
 			(task) => (task.status !== "completed" ? task.title : ""),
 			async (task: { title: string; status: string; id: string }) => {
-				const tokenData = await this.authManager.getToken();
-				const accessToken = tokenData.accessToken;
+				const accessToken = await this.getAccessToken();
 
 				await updateTask(this.settings, accessToken, task.id, true);
 				this.notify(
@@ -631,8 +661,6 @@ export default class TaskSyncerPlugin extends Plugin {
 					"success",
 				);
 
-				await this.refreshTaskCache();
-				// Optionally refresh the sidebar view.
 				await this.refreshSidebarView();
 			},
 		).open();
@@ -648,17 +676,15 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 
 		try {
-			const tokenData = await this.authManager.getToken();
-			const accessToken = tokenData.accessToken;
+			const accessToken = await this.getAccessToken();
 			const tasks = await fetchTasks(this.settings, accessToken);
 			console.log("Fetched Tasks:", tasks);
 
 			// Load the current data (or initialize as an empty object if nothing exists)
 			const currentData = (await this.loadData()) || {};
 
-			// Update only the tasks section and add a timestamp
+			// Update only the tasks section
 			currentData.tasks = Array.from(tasks.entries());
-			currentData.lastUpdated = Date.now();
 
 			// Save the updated data back without overwriting any other properties
 			await this.saveData(currentData);
@@ -672,7 +698,35 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 	}
 
-	// TODO: Implement this method
+	async deleteAllCompletedTasks(): Promise<number> {
+		if (!this.settings.selectedTaskListId) {
+			throw new Error(
+				"No task list selected. Please choose one in settings.",
+			);
+		}
+
+		let deletedTasksCount = 0;
+		try {
+			const accessToken = await this.getAccessToken();
+			const tasks = await this.getTasksFromSelectedList();
+			const completedTasks = Array.from(tasks.values()).filter(
+				(task) => task.status === "completed",
+			);
+
+			for (const task of completedTasks) {
+				console.log("Deleting Task:", task);
+				await deleteTask(this.settings, accessToken, task.id);
+				deletedTasksCount++;
+			}
+
+			this.refreshSidebarView();
+			return deletedTasksCount;
+		} catch (error) {
+			console.error("Error deleting tasks:", error);
+			return deletedTasksCount;
+		}
+	}
+
 	async refreshSidebarView() {
 		if (this.sidebarView) {
 			await this.sidebarView.render();

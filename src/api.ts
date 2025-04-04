@@ -129,3 +129,28 @@ export async function fetchTaskLists(
 
 	return taskLists;
 }
+
+/**
+ * Deletes a task from Microsoft To‑Do.
+ * @param settings Plugin settings containing the selected task list ID.
+ * @param accessToken A valid access token.
+ * @param taskId The ID of the task to delete.
+ */
+export async function deleteTask(
+	settings: MyTodoSettings,
+	accessToken: string,
+	taskId: string,
+): Promise<void> {
+	const response = await requestUrl({
+		url: `https://graph.microsoft.com/v1.0/me/todo/lists/${settings.selectedTaskListId}/tasks/${taskId}`,
+		method: "DELETE",
+		headers: {
+			Authorization: `Bearer ${accessToken}`,
+			"Content-Type": "application/json",
+		},
+	});
+
+	if (response.status !== 204) {
+		throw new Error(`Failed to delete task: ${response.text}`);
+	}
+}

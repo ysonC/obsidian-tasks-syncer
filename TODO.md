@@ -2,7 +2,7 @@
 
 ## main.ts
 
-- [ ] Add refresh function to refresh the list of tasks everytime user push a task or select a list
+- [x] Add refresh function to refresh the list of tasks everytime user push a task or select a list
 - [ ] Add command to remove a task from the list
 - [ ] Add command to remove all completed tasks from the list
 - [x] Separate all api calls into a separate file
