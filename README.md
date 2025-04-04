@@ -1,94 +1,100 @@
-# Obsidian Sample Plugin
+# Task Syncer Plugin for Obsidian
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+This Obsidian plugin syncs tasks between Obsidian notes and Microsoft To-Do. You can easily manage your Microsoft To-Do tasks directly from Obsidian.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+## Features
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+- Sync tasks from Obsidian notes directly into Microsoft To-Do.
+- Mark tasks as complete directly from Obsidian.
+- Sidebar integration for showing current targeted list's task.
 
-## First time developing plugins?
+## Using the Plugin
 
-Quick starting guide for new plugin devs:
+### Commands
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+- **Open Microsoft To-Do Sidebar**: View your tasks directly.
+- **Login to Microsoft To-Do**: Authenticate your Microsoft account.
+- **Refresh Microsoft To-Do Token**: Refresh authentication manually.
+- **Push All Tasks from Note**: Sync tasks from your active note.
+- **Create and Push Task**: Add a single task directly.
+- **Show Not Started Tasks List**: To mark tasks as completed.
+- **Select Task List**: Change the target list in Microsoft To-Do.
+- **Delete Completed Tasks**: Remove all completed tasks in the targeted list.
 
-## Releasing new releases
+---
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+## Supported Platforms
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+- **Microsoft To-Do** (more integrations coming soon!)
 
-## Adding your plugin to the community plugin list
+---
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+## Setup
 
-## How to use
+### Prerequisites
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+You'll need an Azure AD Application set up to integrate with Microsoft To-Do:
 
-## Manually installing the plugin
+1. Go to the [Azure Portal](https://portal.azure.com).
+2. Click on **Azure Active Directory** → **App registrations** → **New registration**.
+3. Enter a name (e.g., "Obsidian Task Syncer").
+4. Set **Supported account types** to **Accounts in any organizational directory and personal Microsoft accounts**.
+5. Set **Redirect URI** to `http://localhost:5000` and select type **Web**.
+6. Click **Register**.
+7. After registration, note down the **Application (client) ID**.
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+### Get Client Secret
 
-## Improve code quality with eslint (optional)
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- To use eslint with this project, make sure to install eslint from terminal:
-  - `npm install -g eslint`
-- To use eslint to analyze this project use this command:
-  - `eslint main.ts`
-  - eslint will then create a report with suggestions for code improvement by file and line number.
-- If your source code is in a folder, such as `src`, you can use eslint with this command to analyze all files in that folder:
-  - `eslint .\src\`
+1. From your app registration, go to **Certificates & secrets**.
+2. Click **New client secret**.
+3. Add a description and set expiration to your preference.
+4. After creation, copy and save your **client secret** securely.
 
-## Funding URL
+---
 
-You can include funding URLs where people who use your plugin can financially support it.
+## Plugin Installation
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+1. Clone this repository into your Obsidian plugins folder:
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+```bash
+git clone https://github.com/your-username/task-syncer-plugin.git
 ```
 
-If you have multiple URLs, you can also do:
+2. Install dependencies:
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
+```bash
+npm install
 ```
 
-## API Documentation
+3. Build the plugin:
 
-See https://github.com/obsidianmd/obsidian-api
+```bash
+npm run build
+```
+
+4. In Obsidian, enable the plugin under **Settings → Community plugins**.
+
+---
+
+## Configuration
+
+After installation:
+
+1. Open Obsidian **Settings**.
+2. Navigate to **Microsoft To-Do Settings** tab.
+3. Enter your **Client ID**, **Client Secret**, and **Redirect URL** (`http://localhost:5000`).
+4. Click **Get Task Lists** to fetch your available Microsoft To-Do lists.
+5. Select the task list you want to sync with.
+
+---
+
+## Development
+
+- `npm run dev`: Runs the plugin in development mode.
+- Changes to `.ts` files will automatically rebuild.
+
+---
+
+## License
+
+[MIT License](LICENSE)
