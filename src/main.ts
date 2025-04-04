@@ -322,6 +322,19 @@ export default class TaskSyncerPlugin extends Plugin {
 		});
 
 		this.addCommand({
+			id: "hello-world",
+			name: "Hello World",
+			callback: async () => {
+				try {
+					console.log("Hello World");
+					this.notify("THE COMMAND WORKS", "success");
+				} catch (error) {
+					console.error("Error testing:", error);
+				}
+			},
+		});
+
+		this.addCommand({
 			id: "testing",
 			name: "Testing",
 			callback: async () => {
