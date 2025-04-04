@@ -83,8 +83,9 @@ After installation:
 1. Open Obsidian **Settings**.
 2. Navigate to **Microsoft To-Do Settings** tab.
 3. Enter your **Client ID**, **Client Secret**, and **Redirect URL** (`http://localhost:5000`).
-4. Click **Get Task Lists** to fetch your available Microsoft To-Do lists.
-5. Select the task list you want to sync with.
+4. Reload the plugin.
+5. Click **Get Task Lists** to fetch your available Microsoft To-Do lists.
+6. Select the task list you want to sync with.
 
 ---
 
