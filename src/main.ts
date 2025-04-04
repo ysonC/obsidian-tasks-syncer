@@ -727,6 +727,9 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 	}
 
+	/**
+	 * Refreshes the sidebar view to display the latest tasks.
+	 */
 	async refreshSidebarView() {
 		if (this.sidebarView) {
 			await this.sidebarView.render();
