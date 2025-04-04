@@ -7,7 +7,10 @@ import {
 	DEFAULT_SETTINGS,
 	MyTodoSettings,
 } from "src/setting";
-import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "src/plugin-view";
+import {
+	VIEW_TYPE_TODO_SIDEBAR,
+	TaskSidebarView,
+} from "src/right-sidebar-view";
 import { fetchTasks, createTask, updateTask, fetchTaskLists } from "src/api";
 import { AuthManager } from "src/auth";
 import { TaskTitleModal } from "src/task-title-modal";
