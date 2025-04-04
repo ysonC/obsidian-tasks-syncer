@@ -1,4 +1,4 @@
-name: Build on Dev → Main Merge
+name: Auto Build and Commit on Merge to Main
 
 on:
     push:
@@ -6,12 +6,11 @@ on:
             - main
 
 jobs:
-    build-on-merge:
-        if: github.event.head_commit.message != '' && startsWith(github.event.head_commit.message, 'Merge pull request') && github.event.before != github.event.after
+    build-and-commit:
         runs-on: ubuntu-latest
 
         steps:
-            - name: Checkout Repo
+            - name: Checkout
               uses: actions/checkout@v3
 
             - name: Set up Node.js
@@ -19,16 +18,15 @@ jobs:
               with:
                   node-version: 18
 
-            - name: Install dependencies
-              run: npm install
+            - name: Install deps & build
+              run: |
+                  npm ci
+                  npm run build
 
-            - name: Build plugin
-              run: npm run build
-
-            - name: Upload plugin build (optional)
-              uses: actions/upload-artifact@v4
-              with:
-                  name: obsidian-plugin
-                  path: |
-                      main.js
-                      manifest.json
+            - name: Commit build output
+              run: |
+                  git config user.name "GitHub Actions"
+                  git config user.email "github-actions@github.com"
+                  git add main.js manifest.json || true
+                  git diff --cached --quiet || git commit -m "🤖 Auto-build on merge to main"
+                  git push
