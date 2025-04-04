@@ -327,7 +327,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				try {
 					console.log("Hello World");
-					this.notify("THE COMMAND WORKS", "success");
+					this.notify("THE COMMAND WORKS and Hello World", "success");
 				} catch (error) {
 					console.error("Error testing:", error);
 				}
