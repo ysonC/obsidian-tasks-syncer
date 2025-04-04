@@ -37,6 +37,7 @@ interface TaskList {
  */
 export default class TaskSyncerPlugin extends Plugin {
 	settings: MyTodoSettings;
+	sidebarView: TaskSidebarView | null = null;
 	tokenFilePath: string;
 	authManager: AuthManager;
 	taskCache: TaskCache | null = null;
@@ -86,10 +87,11 @@ export default class TaskSyncerPlugin extends Plugin {
 		this.addSettingTab(new MyTodoSettingTab(this.app, this));
 
 		// 3. Register the sidebar view.
-		this.registerView(
-			VIEW_TYPE_TODO_SIDEBAR,
-			(leaf) => new TaskSidebarView(leaf, this),
-		);
+		this.registerView(VIEW_TYPE_TODO_SIDEBAR, (leaf) => {
+			const view = new TaskSidebarView(leaf, this);
+			this.sidebarView = view;
+			return view;
+		});
 
 		// 4. Initialize core components (MSAL client, commands, etc.).
 		this.initializeCommand();
@@ -295,11 +297,9 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				try {
 					console.log("Testing");
-					await this.refreshTaskCache();
-					this.taskCache = await this.loadData();
-					console.log("Loaded data:", this.taskCache);
+					await this.refreshSidebarView();
 				} catch (error) {
-					console.error("Error organizing tasks:", error);
+					console.error("Error testing:", error);
 				}
 			},
 		});
@@ -670,5 +670,11 @@ export default class TaskSyncerPlugin extends Plugin {
 	}
 
 	// TODO: Implement this method
-	async refreshSidebarView() { }
+	async refreshSidebarView() {
+		if (this.sidebarView) {
+			await this.sidebarView.render();
+		} else {
+			console.warn("Sidebar view is not active.");
+		}
+	}
 }
