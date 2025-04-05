@@ -32,8 +32,8 @@ jobs:
 
             - name: Commit built files
               run: |
-                  git config user.name "GitHub Actions"
-                  git config user.email "github-actions@github.com"
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@ysonC.noreply.github.com"
 
                   npm version patch --no-git-tag-version
 
