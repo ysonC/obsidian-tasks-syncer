@@ -13,6 +13,8 @@ jobs:
         steps:
             - name: Checkout repository
               uses: actions/checkout@v3
+              with:
+                  fetch-depth: 0
 
             - name: Use Node.js 18
               uses: actions/setup-node@v3
@@ -33,11 +35,19 @@ jobs:
                   git config user.name "GitHub Actions"
                   git config user.email "github-actions@github.com"
 
+                  npm version patch --no-git-tag-version
+
+                  npm run version
+
+                  VERSION=$(node -p "require('./package.json').version")
+                  echo "New version: $VERSION"
+
                   git add -f main.js manifest.json || true
 
                   if git diff --cached --quiet; then
                     echo "✅ No build changes to commit."
                   else
-                    git commit -m "🤖 Auto-build plugin output on merge to main"
-                    git push
+                    git commit -m "🤖 Auto-build plugin output and bump to v$VERSION on merge to main"
+                    git tag v$VERSION
+                    git push origin main --follow-tags
                   fi
