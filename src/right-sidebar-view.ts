@@ -20,21 +20,22 @@ export class TaskSidebarView extends ItemView {
 	}
 
 	async onOpen() {
-		await this.render();
+		const tasks = await this.plugin.refreshTaskCache();
+		await this.render(tasks);
 	}
 
-	async render() {
+	async render(
+		tasks: Map<string, { title: string; status: string; id: string }>,
+	) {
 		const container = this.containerEl.children[1];
 		container.empty();
 
 		const refreshBtn = container.createEl("button", {
 			text: "Refresh Tasks",
 		});
-		refreshBtn.onclick = () => this.render();
+		refreshBtn.onclick = () => this.render(tasks);
 
 		container.createEl("h3", { text: "Tasks" });
-
-		const tasks = await this.plugin.refreshTaskCache();
 
 		if (tasks.size === 0) {
 			container.createEl("p", {
