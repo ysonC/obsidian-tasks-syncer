@@ -1,4 +1,4 @@
-name: Build and Commit Plugin on Merge to Main
+name: Build and Bump Version on Merge to Main
 
 on:
     push:
@@ -49,5 +49,6 @@ jobs:
                   else
                     git commit -m "🤖 Auto-build plugin output and bump to v$VERSION on merge to main"
                     git tag v$VERSION
-                    git push origin main --follow-tags
+                    git push origin main
+                    git push origin --tags
                   fi
