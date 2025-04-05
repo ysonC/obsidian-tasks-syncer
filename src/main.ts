@@ -30,12 +30,18 @@ interface TaskCache {
 	lastUpdated: number;
 }
 
+/**
+ * Interface for task item.
+ */
 interface TaskItem {
 	title: string;
 	status: string;
 	id: string;
 }
 
+/**
+ *  Interface for task lists.
+ */
 interface TaskList {
 	title: string;
 	id: string;
@@ -215,7 +221,7 @@ export default class TaskSyncerPlugin extends Plugin {
 						`Tasks synced successfully! ${tasksCount} new tasks added.`,
 						"success",
 					);
-					await this.refreshSidebarView();
+					await this.refreshViewAndCache();
 				} catch (error) {
 					console.error("Error pushing tasks:", error);
 					this.notify(
@@ -232,10 +238,10 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				new TaskTitleModal(this.app, async (taskTitle: string) => {
 					try {
-						this.notify("Syncing tasks to Microsoft To-Do...");
+						this.notify("Pushing tasks to Microsoft To-Do...");
 						await this.pushOneTask(taskTitle);
-						this.notify(`Tasks synced successfully!`, "success");
-						await this.refreshSidebarView();
+						this.notify(`Tasks pushed successfully!`, "success");
+						await this.refreshViewAndCache();
 					} catch (error) {
 						console.error("Error pushing tasks:", error);
 						this.notify(
@@ -249,10 +255,9 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		this.addCommand({
 			id: "show-not-started-tasks",
-			name: "Show Not Started Tasks List",
+			name: "Show Tasks List",
 			callback: async () => {
 				try {
-					this.notify("Opening task list...");
 					await this.openTaskCompleteModal();
 				} catch (error) {
 					console.error("Error completing task:", error);
@@ -282,7 +287,6 @@ export default class TaskSyncerPlugin extends Plugin {
 			},
 		});
 
-		// Register command to organize tasks from all notes into a single note.
 		this.addCommand({
 			id: "organize-tasks",
 			name: "Organize Tasks from All Notes",
@@ -322,26 +326,12 @@ export default class TaskSyncerPlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "hello-world",
-			name: "Hello World",
-			callback: async () => {
-				try {
-					console.log("Hello World");
-					this.notify("THE COMMAND WORKS and Hello World", "success");
-				} catch (error) {
-					console.error("Error testing:", error);
-				}
-			},
-		});
-
-		this.addCommand({
 			id: "testing",
 			name: "Testing",
 			callback: async () => {
 				try {
 					console.log("Testing");
-					this.deleteAllCompletedTasks();
-					this.notify("Task deleted successfully!", "success");
+					this.notify("Testing...", "success");
 				} catch (error) {
 					console.error("Error testing:", error);
 				}
@@ -444,6 +434,10 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 	}
 
+	/**
+	 * Get task lists using access token with fetchTaskLists api function.
+	 * @returns A TaskList interface with fetched task lists.
+	 * */
 	async getTaskLists(): Promise<TaskList[]> {
 		try {
 			const accessToken = await this.getAccessToken();
@@ -578,7 +572,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			}
 
 			await createTask(this.settings, accessToken, task);
-			await this.refreshSidebarView();
+			await this.refreshViewAndCache();
 			console.log("Synced Tasks:", task);
 		} catch (error) {
 			console.error("Error syncing tasks:", error);
@@ -639,6 +633,9 @@ export default class TaskSyncerPlugin extends Plugin {
 		return tasksMap;
 	}
 
+	/**
+	 * Open a interactive window for the user to interact and select a target task list.
+	 */
 	async openTaskListsModal() {
 		const tasksLists = this.settings.taskLists;
 
@@ -650,11 +647,14 @@ export default class TaskSyncerPlugin extends Plugin {
 			async (taskList: TaskList) => {
 				this.settings.selectedTaskListId = taskList.id;
 				await this.saveSettings();
-				await this.refreshSidebarView();
+				await this.refreshViewAndCache();
 			},
 		).open();
 	}
 
+	/**
+	 * Open a interactive window for the user to interact and select to complete task items.
+	 */
 	async openTaskCompleteModal() {
 		const tasksMap = await this.getTasksFromSelectedList();
 		const notStartedTasks = Array.from(tasksMap.values()).filter(
@@ -674,11 +674,14 @@ export default class TaskSyncerPlugin extends Plugin {
 					"success",
 				);
 
-				await this.refreshSidebarView();
+				await this.refreshViewAndCache();
 			},
 		).open();
 	}
 
+	/**
+	 * Fetch task using api function and store in the cache for quick access.
+	 */
 	async refreshTaskCache(): Promise<
 		Map<string, { title: string; status: string; id: string }>
 	> {
@@ -711,6 +714,10 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 	}
 
+	/**
+	 * Use the deleteTask api function to delete all completed task in the targeted task list.
+	 * @returns Amount of deleted tasks.
+	 */
 	async deleteAllCompletedTasks(): Promise<number> {
 		if (!this.settings.selectedTaskListId) {
 			throw new Error(
@@ -732,7 +739,7 @@ export default class TaskSyncerPlugin extends Plugin {
 				deletedTasksCount++;
 			}
 
-			this.refreshSidebarView();
+			this.refreshViewAndCache();
 			return deletedTasksCount;
 		} catch (error) {
 			console.error("Error deleting tasks:", error);
@@ -741,11 +748,12 @@ export default class TaskSyncerPlugin extends Plugin {
 	}
 
 	/**
-	 * Refreshes the sidebar view to display the latest tasks.
+	 * Refreshes the sidebar view and task cache to display the latest tasks.
 	 */
-	async refreshSidebarView() {
+	async refreshViewAndCache() {
+		const tasks = await this.refreshTaskCache();
 		if (this.sidebarView) {
-			await this.sidebarView.render();
+			await this.sidebarView.render(tasks);
 		} else {
 			console.warn("Sidebar view is not active.");
 		}
