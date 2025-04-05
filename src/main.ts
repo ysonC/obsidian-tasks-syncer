@@ -241,7 +241,6 @@ export default class TaskSyncerPlugin extends Plugin {
 						this.notify("Pushing tasks to Microsoft To-Do...");
 						await this.pushOneTask(taskTitle);
 						this.notify(`Tasks pushed successfully!`, "success");
-						await this.refreshViewAndCache();
 					} catch (error) {
 						console.error("Error pushing tasks:", error);
 						this.notify(
