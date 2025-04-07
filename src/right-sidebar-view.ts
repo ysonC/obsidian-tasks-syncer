@@ -21,10 +21,20 @@ export class TaskSidebarView extends ItemView {
 	}
 
 	async onOpen() {
-		const tasks = await this.plugin.refreshTaskCache();
-		await this.render(tasks);
+		this.render(new Map());
+		this.plugin
+			.getTasksFromSelectedList()
+			.then((tasks) => this.render(tasks))
+			.catch((error) => {
+				console.error("Error loading tasks in sidebar:", error);
+				notify("Error loading tasks in sidebar", error);
+			});
 	}
 
+	/**
+	 * Setup button for refreshing sidebar tasks.
+	 * @param Container for button
+	 */
 	private async setupRefreshButton(container: Element) {
 		const button = container.createEl("button", { text: "Refresh Tasks" });
 		button.onclick = async () => {

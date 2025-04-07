@@ -1,4 +1,4 @@
-import { Plugin, Notice, TFile } from "obsidian";
+import { Plugin, TFile } from "obsidian";
 import * as fs from "fs";
 import * as dotenv from "dotenv";
 import * as path from "path";
@@ -442,6 +442,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			return new Map(this.taskCache.tasks);
 		}
 		try {
+			console.log("No cached tasks found, refreshing task cache.");
 			return await this.refreshTaskCache();
 		} catch (error) {
 			console.error("Error fetching tasks:", error);
@@ -671,17 +672,12 @@ export default class TaskSyncerPlugin extends Plugin {
 			const tasks = await fetchTasks(this.settings, accessToken);
 			console.log("Fetched Tasks:", tasks);
 
-			// Load the current data (or initialize as an empty object if nothing exists)
 			const currentData = (await this.loadData()) || {};
-
-			// Update only the tasks section
 			currentData.tasks = Array.from(tasks.entries());
 
-			// Save the updated data back without overwriting any other properties
+			this.taskCache = currentData;
 			await this.saveData(currentData);
 
-			// Optionally update your in-memory cache too
-			this.taskCache = currentData;
 			return tasks;
 		} catch (error) {
 			console.error("Error fetching tasks:", error);
