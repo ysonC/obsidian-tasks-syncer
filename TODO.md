@@ -1,5 +1,6 @@
 # Todo
 
+- [ ] Update new sidebar view icon
 - [ ] Optimize the loading speed of the plugin
 - [ ] Optimize the loading of the tasks
 - [x] Build github actions to build the plugin
