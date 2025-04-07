@@ -1,4 +1,4 @@
-import { Plugin, Notice, TFile } from "obsidian";
+import { Plugin, TFile } from "obsidian";
 import * as fs from "fs";
 import * as dotenv from "dotenv";
 import * as path from "path";
@@ -21,6 +21,7 @@ import {
 import { AuthManager } from "src/auth";
 import { TaskTitleModal } from "src/task-title-modal";
 import { GenericSelectModal } from "src/select-modal";
+import { notify } from "./utils";
 
 /**
  * Interface for the task cache.
@@ -56,31 +57,6 @@ export default class TaskSyncerPlugin extends Plugin {
 	tokenFilePath: string;
 	authManager: AuthManager;
 	taskCache: TaskCache | null = null;
-
-	/**
-	 * Displays a notification to the user.
-	 * @param message - The message to display.
-	 * @param type - The type of notification ("error", "warning", "success", "info").
-	 */
-	private notify(
-		message: string,
-		type: "error" | "warning" | "success" | "info" = "info",
-	): void {
-		let prefix = "";
-		switch (type) {
-			case "error":
-				prefix = "❌ ";
-				break;
-			case "warning":
-				prefix = "⚠️ ";
-				break;
-			case "success":
-				prefix = "✅ ";
-				break;
-			// For info we leave it as is.
-		}
-		new Notice(prefix + message);
-	}
 
 	/**
 	 * Called when the plugin is activated.
@@ -132,7 +108,6 @@ export default class TaskSyncerPlugin extends Plugin {
 		// 7. Register styles
 		// this.registerStyles(pluginPath);
 		this.injectStyles();
-		this.notify("Microsoft To-Do Plugin Loaded!", "info");
 	}
 
 	/**
@@ -154,12 +129,12 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Login to Microsoft To-Do (Interactive)",
 			callback: async () => {
 				try {
-					this.notify("Logging in...");
+					notify("Logging in...");
 					await this.authManager.getAccessToken();
-					this.notify("Logged in successfully!", "success");
+					notify("Logged in successfully!", "success");
 				} catch (error) {
 					console.error("Authentication error:", error);
-					this.notify(
+					notify(
 						"Error logining in! Check the console for details.",
 						"error",
 					);
@@ -175,11 +150,11 @@ export default class TaskSyncerPlugin extends Plugin {
 				try {
 					const tokenData =
 						await this.authManager.refreshAccessTokenWithCCA();
-					this.notify("Token refreshed successfully!", "success");
+					notify("Token refreshed successfully!", "success");
 					console.log("New Access Token:", tokenData.accessToken);
 				} catch (error) {
 					console.error("Error refreshing token:", error);
-					this.notify(
+					notify(
 						"Error refreshing token. Check the console for details.",
 						"error",
 					);
@@ -193,15 +168,15 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Get Tasks from Selected List",
 			callback: async () => {
 				try {
-					this.notify("Fetching tasks...");
+					notify("Fetching tasks...");
 					await this.getTasksFromSelectedList();
-					this.notify("Tasks fetched successfully!", "success");
+					notify("Tasks fetched successfully!", "success");
 				} catch (error) {
 					console.error(
 						"Error fetching tasks from selected list:",
 						error,
 					);
-					this.notify(
+					notify(
 						"Error fetching tasks. Check the console for details.",
 						"error",
 					);
@@ -215,16 +190,16 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Push All Tasks from Note to Microsoft To-Do",
 			callback: async () => {
 				try {
-					this.notify("Syncing tasks to Microsoft To-Do...");
+					notify("Syncing tasks to Microsoft To-Do...");
 					const tasksCount = await this.pushTasksFromNote();
-					this.notify(
+					notify(
 						`Tasks synced successfully! ${tasksCount} new tasks added.`,
 						"success",
 					);
 					await this.refreshViewAndCache();
 				} catch (error) {
 					console.error("Error pushing tasks:", error);
-					this.notify(
+					notify(
 						"Error pushing tasks. Check the console for details.",
 						"error",
 					);
@@ -238,13 +213,12 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				new TaskTitleModal(this.app, async (taskTitle: string) => {
 					try {
-						this.notify("Pushing tasks to Microsoft To-Do...");
+						notify("Pushing tasks to Microsoft To-Do...");
 						await this.pushOneTask(taskTitle);
-						this.notify(`Tasks pushed successfully!`, "success");
-						await this.refreshViewAndCache();
+						notify(`Tasks pushed successfully!`, "success");
 					} catch (error) {
 						console.error("Error pushing tasks:", error);
-						this.notify(
+						notify(
 							"Error pushing tasks. Check the console for details.",
 							"error",
 						);
@@ -261,7 +235,7 @@ export default class TaskSyncerPlugin extends Plugin {
 					await this.openTaskCompleteModal();
 				} catch (error) {
 					console.error("Error completing task:", error);
-					this.notify(
+					notify(
 						"Error completing task. Check the console for details.",
 						"error",
 					);
@@ -274,12 +248,12 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Select Task List",
 			callback: async () => {
 				try {
-					this.notify("Selecting task list...");
+					notify("Selecting task list...");
 					await this.openTaskListsModal();
-					this.notify("Task list selected successfully!", "success");
+					notify("Task list selected successfully!", "success");
 				} catch (error) {
 					console.error("Error selecting task list:", error);
-					this.notify(
+					notify(
 						"Error selecting task list. Check the console for details.",
 						"error",
 					);
@@ -293,10 +267,10 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				try {
 					await this.gatherTasks();
-					this.notify("Tasks organized successfully!", "success");
+					notify("Tasks organized successfully!", "success");
 				} catch (error) {
 					console.error("Error organizing tasks:", error);
-					this.notify(
+					notify(
 						"Error organizing tasks. Check the console for details.",
 						"error",
 					);
@@ -309,15 +283,15 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Delete Completed Tasks",
 			callback: async () => {
 				try {
-					this.notify("Deleting completed tasks...");
+					notify("Deleting completed tasks...");
 					const deletedCount = await this.deleteAllCompletedTasks();
-					this.notify(
+					notify(
 						`${deletedCount} completed tasks deleted successfully!`,
 						"success",
 					);
 				} catch (error) {
 					console.error("Error deleting completed tasks:", error);
-					this.notify(
+					notify(
 						"Error deleting tasks. Check the console for details.",
 						"error",
 					);
@@ -331,7 +305,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			callback: async () => {
 				try {
 					console.log("Testing");
-					this.notify("Testing...", "success");
+					notify("Testing...", "success");
 				} catch (error) {
 					console.error("Error testing:", error);
 				}
@@ -413,7 +387,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	 * Fetches available Microsoft To-Do task lists and updates the plugin settings.
 	 */
 	async loadAvailableTaskLists(): Promise<void> {
-		this.notify("Loading task lists...");
+		notify("Loading task lists...");
 		try {
 			const accessToken = await this.getAccessToken();
 			const listArray = await fetchTaskLists(accessToken);
@@ -424,10 +398,10 @@ export default class TaskSyncerPlugin extends Plugin {
 				title: list.title,
 			}));
 
-			this.notify("Task lists loaded successfully!", "success");
+			notify("Task lists loaded successfully!", "success");
 		} catch (err) {
 			console.error("Error loading task lists:", err);
-			this.notify(
+			notify(
 				"Error loading task lists. Check the console for details.",
 				"error",
 			);
@@ -467,6 +441,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			return new Map(this.taskCache.tasks);
 		}
 		try {
+			console.log("No cached tasks found, refreshing task cache.");
 			return await this.refreshTaskCache();
 		} catch (error) {
 			console.error("Error fetching tasks:", error);
@@ -669,7 +644,7 @@ export default class TaskSyncerPlugin extends Plugin {
 				const accessToken = await this.getAccessToken();
 
 				await updateTask(this.settings, accessToken, task.id, true);
-				this.notify(
+				notify(
 					`Task "${task.title}" marked as complete and synced.`,
 					"success",
 				);
@@ -696,17 +671,12 @@ export default class TaskSyncerPlugin extends Plugin {
 			const tasks = await fetchTasks(this.settings, accessToken);
 			console.log("Fetched Tasks:", tasks);
 
-			// Load the current data (or initialize as an empty object if nothing exists)
 			const currentData = (await this.loadData()) || {};
-
-			// Update only the tasks section
 			currentData.tasks = Array.from(tasks.entries());
 
-			// Save the updated data back without overwriting any other properties
+			this.taskCache = currentData;
 			await this.saveData(currentData);
 
-			// Optionally update your in-memory cache too
-			this.taskCache = currentData;
 			return tasks;
 		} catch (error) {
 			console.error("Error fetching tasks:", error);

@@ -1,7 +1,8 @@
 # Todo
 
-- [ ] Optimize the loading speed of the plugin
-- [ ] Optimize the loading of the tasks
+- [x] Update new sidebar view icon
+- [x] Optimize the loading speed of the plugin
+- [x] Optimize the loading of the tasks
 - [x] Build github actions to build the plugin
 
 ## main.ts
