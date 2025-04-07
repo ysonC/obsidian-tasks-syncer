@@ -108,7 +108,6 @@ export default class TaskSyncerPlugin extends Plugin {
 		// 7. Register styles
 		// this.registerStyles(pluginPath);
 		this.injectStyles();
-		notify("Microsoft To-Do Plugin Loaded!", "info");
 	}
 
 	/**

@@ -20,8 +20,13 @@ export class TaskSidebarView extends ItemView {
 		return "To-Do Tasks";
 	}
 
+	getIcon(): string {
+		return "list-todo";
+	}
+
 	async onOpen() {
-		this.render(new Map());
+		this.injectStyles();
+		this.render(null);
 		this.plugin
 			.getTasksFromSelectedList()
 			.then((tasks) => this.render(tasks))
@@ -38,15 +43,22 @@ export class TaskSidebarView extends ItemView {
 	private async setupRefreshButton(container: Element) {
 		const button = container.createEl("button", { text: "Refresh Tasks" });
 		button.onclick = async () => {
-			notify("Refreshing tasks...");
-			const tasks = await this.plugin.refreshTaskCache();
-			this.render(tasks);
-			notify("Task refreshed!", "success");
+			this.render(null);
+			try {
+				const tasks = await this.plugin.refreshTaskCache();
+				this.render(tasks);
+			} catch (error) {
+				console.log("Error refreshing tasks:", error);
+				notify("Failed to refresh tasks", "error");
+			}
 		};
 	}
 
 	async render(
-		tasks: Map<string, { title: string; status: string; id: string }>,
+		tasks: Map<
+			string,
+			{ title: string; status: string; id: string }
+		> | null,
 	) {
 		const container = this.containerEl.children[1];
 		container.empty();
@@ -55,9 +67,18 @@ export class TaskSidebarView extends ItemView {
 
 		container.createEl("h3", { text: "Tasks" });
 
+		if (tasks === null) {
+			const spinnerWrapper = container.createDiv({
+				cls: "spinner-wrapper",
+			});
+			spinnerWrapper.createDiv({ cls: "loading-spinner" });
+			spinnerWrapper.createEl("p", { text: "Loading tasks..." });
+			return;
+		}
+
 		if (tasks.size === 0) {
 			container.createEl("p", {
-				text: "No tasks found or not authenticated.",
+				text: "No tasks found",
 			});
 			return;
 		}
@@ -72,7 +93,9 @@ export class TaskSidebarView extends ItemView {
 				return 0; // Keep original order otherwise
 			})
 			.forEach((task) => {
-				const line = container.createEl("div", { cls: "task-line" });
+				const line = container.createEl("div", {
+					cls: "task-line",
+				});
 
 				const checkbox = line.createEl("input", {
 					type: "checkbox",
@@ -88,5 +111,34 @@ export class TaskSidebarView extends ItemView {
 	}
 	async onClose() {
 		// Optional cleanup
+	}
+
+	injectStyles() {
+		const style = document.createElement("style");
+		style.textContent = `
+	.spinner-wrapper {
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		padding: 1em;
+	}
+
+	.loading-spinner {
+		width: 24px;
+		height: 24px;
+		border: 3px solid var(--background-modifier-border);
+		border-top: 3px solid var(--text-accent);
+		border-radius: 50%;
+		animation: spin 1s linear infinite;
+		margin-bottom: 0.5em;
+	}
+
+	@keyframes spin {
+		0% { transform: rotate(0deg); }
+		100% { transform: rotate(360deg); }
+	}
+	`;
+		document.head.appendChild(style);
 	}
 }
