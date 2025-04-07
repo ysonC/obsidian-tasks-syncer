@@ -23,7 +23,7 @@ jobs:
             - run: npm run build
 
             # Get version from manifest.json
-            - id: get_version
+            - name: Get version
               run: echo "version=$(node -p "require('./manifest.json').version")" >> $GITHUB_OUTPUT
 
             # Check if tag exists, create if not
