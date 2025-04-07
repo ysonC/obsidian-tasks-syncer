@@ -1,5 +1,6 @@
 import { ItemView, WorkspaceLeaf } from "obsidian";
 import type TaskSyncerPlugin from "src/main";
+import { notify } from "./utils";
 
 export const VIEW_TYPE_TODO_SIDEBAR = "tasks-syncer-sidebar";
 
@@ -24,16 +25,23 @@ export class TaskSidebarView extends ItemView {
 		await this.render(tasks);
 	}
 
+	private async setupRefreshButton(container: Element) {
+		const button = container.createEl("button", { text: "Refresh Tasks" });
+		button.onclick = async () => {
+			notify("Refreshing tasks...");
+			const tasks = await this.plugin.refreshTaskCache();
+			this.render(tasks);
+			notify("Task refreshed!", "success");
+		};
+	}
+
 	async render(
 		tasks: Map<string, { title: string; status: string; id: string }>,
 	) {
 		const container = this.containerEl.children[1];
 		container.empty();
 
-		const refreshBtn = container.createEl("button", {
-			text: "Refresh Tasks",
-		});
-		refreshBtn.onclick = () => this.render(tasks);
+		this.setupRefreshButton(container);
 
 		container.createEl("h3", { text: "Tasks" });
 
