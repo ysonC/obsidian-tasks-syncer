@@ -12,7 +12,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
-                  fetch-depth: 0 # needed to get tag history
+                  fetch-depth: 0 # Needed for tag lookup
 
             - uses: actions/setup-node@v3
               with:
@@ -22,21 +22,25 @@ jobs:
 
             - run: npm run build
 
-            # Get version from manifest.json
-            - id: get_version
+            - name: Get Version
               run: echo "version=$(node -p "require('./manifest.json').version")" >> $GITHUB_OUTPUT
 
-            # Check if tag exists, create if not
-            - name: Tag and Release
+            - name: Commit built files
               run: |
-                  VERSION=${{ steps.get_version.outputs.version }}
-                  TAG=v$VERSION
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+
+                  git add main.js manifest.json versions.json
+                  git commit -m "🤖 Auto-build plugin output and bump to v${{ steps.get_version.outputs.version }}" || echo "No changes to commit"
+                  git push
+
+            - name: Tag release if needed
+              run: |
+                  TAG=v${{ steps.get_version.outputs.version }}
                   if git rev-parse "$TAG" >/dev/null 2>&1; then
                     echo "Tag $TAG already exists, skipping."
                   else
-                    git config user.name "github-actions[bot]"
-                    git config user.email "github-actions[bot]@users.noreply.github.com"
                     git tag $TAG
                     git push origin $TAG
-                    echo "Created new tag: $TAG"
+                    echo "Created tag: $TAG"
                   fi
