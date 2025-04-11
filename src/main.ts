@@ -248,9 +248,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Select Task List",
 			callback: async () => {
 				try {
-					notify("Selecting task list...");
 					await this.openTaskListsModal();
-					notify("Task list selected successfully!", "success");
 				} catch (error) {
 					console.error("Error selecting task list:", error);
 					notify(
@@ -641,8 +639,8 @@ export default class TaskSyncerPlugin extends Plugin {
 			notStartedTasks,
 			(task) => (task.status !== "completed" ? task.title : ""),
 			async (task: { title: string; status: string; id: string }) => {
+				notify(`Marking "${task.title}" as complete...`);
 				const accessToken = await this.getAccessToken();
-
 				await updateTask(this.settings, accessToken, task.id, true);
 				notify(
 					`Task "${task.title}" marked as complete and synced.`,
