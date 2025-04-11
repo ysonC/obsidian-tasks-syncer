@@ -108,30 +108,48 @@ export class TaskSidebarView extends ItemView {
 				line.createEl("span", {
 					text: task.title,
 				});
+				checkbox.addEventListener("change", async (event) => {
+					checkbox.disabled = true;
 
-				checkbox.addEventListener("change", () => {
-					this.clickCheckBoxToUpdate(task);
+					const target = event.target as HTMLInputElement;
+					const newCompletedState = target.checked; // true if checked, false otherwise
+
+					try {
+						const accessToken = await this.plugin.getAccessToken();
+						console.log(
+							`Updating "${task.title}" to ${newCompletedState ? "completed" : "not started"}`,
+						);
+
+						await updateTask(
+							this.plugin.settings,
+							accessToken,
+							task.id,
+							newCompletedState,
+						);
+
+						task.status = newCompletedState
+							? "completed"
+							: "notstarted";
+						try {
+							const tasks = await this.plugin.refreshTaskCache();
+							this.render(tasks);
+						} catch (error) {
+							console.log("Error refreshing tasks:", error);
+							notify("Failed to refresh tasks", "error");
+						}
+					} catch (error) {
+						console.error(
+							"Error updating task with checkbox:",
+							error,
+						);
+						notify("Failed to update task", "error");
+
+						target.checked = !newCompletedState;
+					} finally {
+						checkbox.disabled = false;
+					}
 				});
 			});
-	}
-
-	async clickCheckBoxToUpdate(task: {
-		id: string;
-		status: string;
-		title: string;
-	}) {
-		let status = false;
-		if (task.status == "completed") status = false;
-		else if (task.status == "notstarted") status = true;
-
-		const accessToken = await this.plugin.getAccessToken();
-		try {
-			console.log(`Updating ${task.title} to ${status}`);
-			await updateTask(this.plugin.settings, accessToken, task.id, false);
-		} catch (error) {
-			console.log("Error updating task with checkbox:", error);
-			notify("Failed to update task with checkbox", "error");
-		}
 	}
 
 	async onClose() {
