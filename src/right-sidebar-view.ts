@@ -7,6 +7,7 @@ export const VIEW_TYPE_TODO_SIDEBAR = "tasks-syncer-sidebar";
 
 export class TaskSidebarView extends ItemView {
 	plugin: TaskSyncerPlugin;
+	contentContainer: Element;
 
 	constructor(leaf: WorkspaceLeaf, plugin: TaskSyncerPlugin) {
 		super(leaf);
@@ -26,6 +27,17 @@ export class TaskSidebarView extends ItemView {
 	}
 
 	async onOpen() {
+		const viewContent = this.containerEl.querySelector(".view-content");
+		if (viewContent) {
+			this.contentContainer = viewContent.createDiv(
+				"tasks-syncer-content",
+			);
+		} else {
+			this.contentContainer = this.containerEl.createDiv(
+				"tasks-syncer-content",
+			);
+		}
+
 		this.injectStyles();
 		this.render(null);
 		this.plugin
@@ -61,12 +73,13 @@ export class TaskSidebarView extends ItemView {
 			{ title: string; status: string; id: string }
 		> | null,
 	) {
-		const container = this.containerEl.children[1];
+		const container = this.contentContainer;
 		container.empty();
 
 		this.setupRefreshButton(container);
 
-		container.createEl("h3", { text: "Tasks" });
+		container.createEl("div", { cls: "task-list-spacer" });
+		// container.createEl("h5", { text: "" });
 
 		if (tasks === null) {
 			const spinnerWrapper = container.createDiv({
@@ -181,6 +194,11 @@ export class TaskSidebarView extends ItemView {
 		0% { transform: rotate(0deg); }
 		100% { transform: rotate(360deg); }
 	}
+	
+	.task-list-spacer{
+		height: 1em
+	}
+
 	`;
 		document.head.appendChild(style);
 	}
