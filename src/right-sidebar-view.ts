@@ -1,6 +1,7 @@
 import { ItemView, WorkspaceLeaf } from "obsidian";
 import type TaskSyncerPlugin from "src/main";
 import { notify } from "./utils";
+import { updateTask } from "./api";
 
 export const VIEW_TYPE_TODO_SIDEBAR = "tasks-syncer-sidebar";
 
@@ -102,13 +103,37 @@ export class TaskSidebarView extends ItemView {
 				}) as HTMLInputElement;
 
 				checkbox.checked = task.status === "completed";
-				checkbox.disabled = true;
+				checkbox.disabled = false;
 
 				line.createEl("span", {
 					text: task.title,
 				});
+
+				checkbox.addEventListener("change", () => {
+					this.clickCheckBoxToUpdate(task);
+				});
 			});
 	}
+
+	async clickCheckBoxToUpdate(task: {
+		id: string;
+		status: string;
+		title: string;
+	}) {
+		let status = false;
+		if (task.status == "completed") status = false;
+		else if (task.status == "notstarted") status = true;
+
+		const accessToken = await this.plugin.getAccessToken();
+		try {
+			console.log(`Updating ${task.title} to ${status}`);
+			await updateTask(this.plugin.settings, accessToken, task.id, false);
+		} catch (error) {
+			console.log("Error updating task with checkbox:", error);
+			notify("Failed to update task with checkbox", "error");
+		}
+	}
+
 	async onClose() {
 		// Optional cleanup
 	}
