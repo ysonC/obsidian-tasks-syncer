@@ -1,11 +1,6 @@
 import { requestUrl } from "obsidian";
 import { MyTodoSettings } from "src/setting";
-
-export interface MSTask {
-	title: string;
-	status: string;
-	id: string;
-}
+import { TaskItem } from "./types";
 
 /**
  * Fetches tasks from the selected Microsoft To‑Do list.
@@ -16,8 +11,8 @@ export interface MSTask {
 export async function fetchTasks(
 	settings: MyTodoSettings,
 	accessToken: string,
-): Promise<Map<string, MSTask>> {
-	const tasks = new Map<string, MSTask>();
+): Promise<Map<string, TaskItem>> {
+	const tasks = new Map<string, TaskItem>();
 	const response = await requestUrl({
 		url: `https://graph.microsoft.com/v1.0/me/todo/lists/${settings.selectedTaskListId}/tasks`,
 		method: "GET",

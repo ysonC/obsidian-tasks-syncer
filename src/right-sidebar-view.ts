@@ -2,6 +2,7 @@ import { ItemView, WorkspaceLeaf } from "obsidian";
 import type TaskSyncerPlugin from "src/main";
 import { notify } from "./utils";
 import { updateTask } from "./api";
+import { TaskItem } from "./types";
 
 export const VIEW_TYPE_TODO_SIDEBAR = "tasks-syncer-sidebar";
 
@@ -67,12 +68,7 @@ export class TaskSidebarView extends ItemView {
 		};
 	}
 
-	async render(
-		tasks: Map<
-			string,
-			{ title: string; status: string; id: string }
-		> | null,
-	) {
+	async render(tasks: Map<string, TaskItem> | null) {
 		const container = this.contentContainer;
 		container.empty();
 
