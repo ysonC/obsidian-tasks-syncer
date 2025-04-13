@@ -21,5 +21,5 @@ export interface TaskItem {
 	title: string;
 	status: string;
 	id: string;
-	dueDate?: string;
+	dueDateTime?: string;
 }
