@@ -1,6 +1,6 @@
 # Todo
 
-- [ ] Implement interactive button with sidebar view
+- [x] Implement interactive button with sidebar view
 - [x] Update new sidebar view icon
 - [x] Optimize the loading speed of the plugin
 - [x] Optimize the loading of the tasks

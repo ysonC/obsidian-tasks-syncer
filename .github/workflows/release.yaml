@@ -1,0 +1,61 @@
+name: Release Obsidian Plugin
+
+on:
+    push:
+        branches:
+            - main
+
+jobs:
+    release:
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0 # needed for tagging
+
+            - uses: actions/setup-node@v3
+              with:
+                  node-version: "18"
+
+            - run: npm ci
+
+            - run: npm run build
+
+            - name: Get version from manifest.json
+              id: get_version
+              run: |
+                  VERSION=$(node -p "require('./manifest.json').version")
+                  echo "VERSION=$VERSION" >> $GITHUB_ENV
+                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+            - name: Check if tag already exists
+              id: check_tag
+              run: |
+                  if git rev-parse "v$VERSION" >/dev/null 2>&1; then
+                    echo "Tag already exists. Skipping tag & release."
+                    echo "exists=true" >> $GITHUB_OUTPUT
+                  else
+                    echo "exists=false" >> $GITHUB_OUTPUT
+                  fi
+
+            - name: Create Git Tag
+              if: steps.check_tag.outputs.exists == 'false'
+              run: |
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
+                  git tag "v$VERSION"
+                  git push origin "v$VERSION"
+
+            - name: Create GitHub Release
+              if: steps.check_tag.outputs.exists == 'false'
+              uses: softprops/action-gh-release@v1
+              with:
+                  tag_name: v${{ steps.get_version.outputs.version }}
+                  name: v${{ steps.get_version.outputs.version }}
+                  files: |
+                      main.js
+                      manifest.json
+                      versions.json
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
