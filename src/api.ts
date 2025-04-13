@@ -36,6 +36,7 @@ export async function fetchTasks(
 		}
 	}
 
+	console.log("Here is the raw data: ", data);
 	return tasks;
 }
 
