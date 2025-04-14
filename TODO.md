@@ -1,12 +1,14 @@
 # Todo
 
-- [x] Organize task object into types
 - [ ] Add show due date
 - [ ] Sort by due date for side bar
 - [ ] Add icon if due day is close, can be set in setting
+- [ ] Add function to hide complete tasks in sidebar
+- [ ] Add icon above tasks for refresh and toggle complete
 
 # Complete
 
+- [x] Organize task object into types
 - [x] Implement interactive button with sidebar view
 - [x] Update new sidebar view icon
 - [x] Optimize the loading speed of the plugin
