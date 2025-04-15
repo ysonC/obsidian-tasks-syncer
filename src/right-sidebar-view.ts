@@ -9,6 +9,7 @@ export const VIEW_TYPE_TODO_SIDEBAR = "tasks-syncer-sidebar";
 export class TaskSidebarView extends ItemView {
 	plugin: TaskSyncerPlugin;
 	contentContainer: Element;
+	taskContainer: Element;
 
 	constructor(leaf: WorkspaceLeaf, plugin: TaskSyncerPlugin) {
 		super(leaf);
@@ -38,7 +39,9 @@ export class TaskSidebarView extends ItemView {
 				"tasks-syncer-content",
 			);
 		}
+		this.setupRefreshButton(this.contentContainer);
 
+		this.taskContainer = this.contentContainer.createDiv("tasks-group");
 		this.injectStyles();
 		this.render(null);
 		this.plugin
@@ -69,13 +72,10 @@ export class TaskSidebarView extends ItemView {
 	}
 
 	async render(tasks: Map<string, TaskItem> | null) {
-		const container = this.contentContainer;
+		const container = this.taskContainer;
 		container.empty();
 
-		this.setupRefreshButton(container);
-
 		container.createEl("div", { cls: "task-list-spacer" });
-		// container.createEl("h5", { text: "" });
 
 		if (tasks === null) {
 			const spinnerWrapper = container.createDiv({

@@ -1,10 +1,10 @@
 # Todo
 
+- [>] Add icon above tasks for refresh and toggle complete
 - [ ] Add show due date
 - [ ] Sort by due date for side bar
 - [ ] Add icon if due day is close, can be set in setting
 - [ ] Add function to hide complete tasks in sidebar
-- [ ] Add icon above tasks for refresh and toggle complete
 
 # Complete
 
