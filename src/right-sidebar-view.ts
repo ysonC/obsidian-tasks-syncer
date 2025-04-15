@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, setIcon, WorkspaceLeaf } from "obsidian";
 import type TaskSyncerPlugin from "src/main";
 import { notify } from "./utils";
 import { updateTask } from "./api";
@@ -10,6 +10,7 @@ export class TaskSidebarView extends ItemView {
 	plugin: TaskSyncerPlugin;
 	contentContainer: Element;
 	taskContainer: Element;
+	navContainer: Element;
 
 	constructor(leaf: WorkspaceLeaf, plugin: TaskSyncerPlugin) {
 		super(leaf);
@@ -39,9 +40,13 @@ export class TaskSidebarView extends ItemView {
 				"tasks-syncer-content",
 			);
 		}
-		this.setupRefreshButton(this.contentContainer);
+		const mainContainer = this.contentContainer;
 
-		this.taskContainer = this.contentContainer.createDiv("tasks-group");
+		// Layer: nav -> button -> tasks
+		this.setupNavHeader();
+		// this.setupRefreshButton();
+		this.taskContainer = mainContainer.createDiv("tasks-group");
+
 		this.injectStyles();
 		this.render(null);
 		this.plugin
@@ -57,9 +62,36 @@ export class TaskSidebarView extends ItemView {
 	 * Setup button for refreshing sidebar tasks.
 	 * @param Container for button
 	 */
-	private async setupRefreshButton(container: Element) {
-		const button = container.createEl("button", { text: "Refresh Tasks" });
+	private async setupRefreshButton() {
+		const button = this.contentContainer.createEl("button", {
+			text: "Refresh Tasks",
+		});
 		button.onclick = async () => {
+			this.render(null);
+			try {
+				const tasks = await this.plugin.refreshTaskCache();
+				this.render(tasks);
+			} catch (error) {
+				console.log("Error refreshing tasks:", error);
+				notify("Failed to refresh tasks", "error");
+			}
+		};
+	}
+
+	/**
+	 * Setup nav header for storing buttons
+	 * @param Main container
+	 */
+	private async setupNavHeader() {
+		const navContent = this.contentContainer.createDiv("nav-header");
+		const navButtons = navContent.createDiv({ cls: "nav-buttons" });
+
+		const refreshBtn = navButtons.createEl("a", {
+			cls: "nav-action-button",
+		});
+		setIcon(refreshBtn, "refresh-cw");
+		refreshBtn.title = "Refreash-Tasks";
+		refreshBtn.onclick = async () => {
 			this.render(null);
 			try {
 				const tasks = await this.plugin.refreshTaskCache();
@@ -193,6 +225,24 @@ export class TaskSidebarView extends ItemView {
 	
 	.task-list-spacer{
 		height: 1em
+	}
+
+	.nav-action-button {
+	  /* Ensure the button is displayed as an inline-flex container */
+	  display: inline-flex;
+	  align-items: center;
+	  justify-content: center;
+	  width: 24px;       /* Match Obsidian’s typical icon button size */
+	  height: 24px;
+	  /* Set the icon color to white */
+	  color: white;
+	  background: transparent; /* No background by default */
+	  border-radius: 4px;      /* Optional rounding to mimic the square with rounded corners */
+	  transition: background-color 0.2s ease-in-out;
+	}
+
+	.nav-action-button:hover {
+	  background-color: var(--background-modifier-hover, #444);
 	}
 
 	`;
