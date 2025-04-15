@@ -17,6 +17,7 @@ import {
 	updateTask,
 	fetchTaskLists,
 	deleteTask,
+	updateTaskListName,
 } from "src/api";
 import { AuthManager } from "src/auth";
 import { TaskTitleModal } from "src/task-title-modal";
@@ -187,19 +188,15 @@ export default class TaskSyncerPlugin extends Plugin {
 			id: "push-one-task",
 			name: "Create and push Task",
 			callback: async () => {
-				new TaskTitleModal(this.app, async (taskTitle: string) => {
-					try {
-						notify("Pushing tasks to Microsoft To-Do...");
-						await this.pushOneTask(taskTitle);
-						notify(`Tasks pushed successfully!`, "success");
-					} catch (error) {
-						console.error("Error pushing tasks:", error);
-						notify(
-							"Error pushing tasks. Check the console for details.",
-							"error",
-						);
-					}
-				}).open();
+				try {
+					await this.openPushTaskModal();
+				} catch (error) {
+					console.error("Error opening push task modal: ", error);
+					notify(
+						"Error opening push task modal. Check the console for details.",
+						"error",
+					);
+				}
 			},
 		});
 
@@ -278,7 +275,13 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Testing",
 			callback: async () => {
 				try {
-					console.log("Testing");
+					console.log("Change name");
+					const newName = "Tasks";
+					updateTaskListName(
+						this.settings,
+						await this.getAccessToken(),
+						newName,
+					);
 					notify("Testing...", "success");
 				} catch (error) {
 					console.error("Error testing:", error);
@@ -581,6 +584,25 @@ export default class TaskSyncerPlugin extends Plugin {
 	}
 
 	/**
+	 * Open an interactive window to create task and push it.
+	 */
+	async openPushTaskModal() {
+		new TaskTitleModal(this.app, async (taskTitle: string) => {
+			try {
+				notify("Pushing tasks to Microsoft To-Do...");
+				await this.pushOneTask(taskTitle);
+				notify(`Tasks pushed successfully!`, "success");
+			} catch (error) {
+				console.error("Error pushing tasks:", error);
+				notify(
+					"Error pushing tasks. Check the console for details.",
+					"error",
+				);
+			}
+		}).open();
+	}
+
+	/**
 	 * Open a interactive window for the user to interact and select a target task list.
 	 */
 	async openTaskListsModal() {
@@ -593,6 +615,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			(taskList) => taskList.title,
 			async (taskList: TaskList) => {
 				this.settings.selectedTaskListId = taskList.id;
+				this.settings.selectedTaskListTitle = taskList.title;
 				await this.saveSettings();
 				await this.refreshViewAndCache();
 			},
@@ -624,6 +647,16 @@ export default class TaskSyncerPlugin extends Plugin {
 				await this.refreshViewAndCache();
 			},
 		).open();
+	}
+
+	async getTaskFromCache(): Promise<Map<string, TaskItem>> {
+		const currentData = (await this.loadData()) || {};
+		const tasksArray = currentData.tasks;
+		if (!tasksArray) {
+			throw new Error("No task found.");
+		}
+		const tasks = new Map<string, TaskItem>(tasksArray);
+		return tasks;
 	}
 
 	/**
@@ -691,9 +724,9 @@ export default class TaskSyncerPlugin extends Plugin {
 	 * Refreshes the sidebar view and task cache to display the latest tasks.
 	 */
 	async refreshViewAndCache() {
-		const tasks = await this.refreshTaskCache();
+		await this.refreshTaskCache();
 		if (this.sidebarView) {
-			await this.sidebarView.render(tasks);
+			await this.sidebarView.render();
 		} else {
 			console.warn("Sidebar view is not active.");
 		}

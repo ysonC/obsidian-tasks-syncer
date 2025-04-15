@@ -119,10 +119,13 @@ export async function fetchTaskLists(
 	console.log("Task lists data:", data);
 	if (data.value && Array.isArray(data.value)) {
 		for (const list of data.value) {
-			taskLists.push({ title: list.displayName, id: list.id });
+			let title = list.displayName;
+			if (title === "工作") {
+				title = "Tasks";
+			}
+			taskLists.push({ title, id: list.id });
 		}
 	}
-
 	return taskLists;
 }
 
@@ -149,4 +152,28 @@ export async function deleteTask(
 	if (response.status !== 204) {
 		throw new Error(`Failed to delete task: ${response.text}`);
 	}
+}
+
+export async function updateTaskListName(
+	settings: MyTodoSettings,
+	accessToken: string,
+	newName: string,
+) {
+	const endpoint = `https://graph.microsoft.com/v1.0/me/todo/lists/${settings.selectedTaskListId}`;
+	const response = await fetch(endpoint, {
+		method: "PATCH",
+		headers: {
+			"Content-Type": "application/json",
+			Authorization: `Bearer ${accessToken}`,
+		},
+		body: JSON.stringify({
+			displayName: newName,
+		}),
+	});
+
+	if (!response.ok) {
+		throw new Error(`Error updating list name: ${response.statusText}`);
+	}
+
+	return await response.json();
 }

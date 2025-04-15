@@ -29,12 +29,9 @@ export class TaskTitleModal extends Modal {
 		contentEl.style.flexDirection = "column";
 		contentEl.style.alignItems = "center";
 		contentEl.style.justifyContent = "center";
-		contentEl.style.gap = "10px";
-		contentEl.style.minHeight = "100px";
 
 		// Create and append the header.
-		contentEl.createEl("h2", { text: "Enter Task Title" });
-
+		// contentEl.createEl("h2", { text: "Enter Task Title" });
 		// Create and append the input element.
 		const inputEl = contentEl.createEl("input", {
 			type: "text",
@@ -47,6 +44,8 @@ export class TaskTitleModal extends Modal {
 		// When the user presses Enter, submit the input.
 		inputEl.onkeydown = (e) => {
 			if (e.key === "Enter") {
+				e.preventDefault();
+				e.stopPropagation();
 				this.result = inputEl.value;
 				this.close();
 				this.onSubmit(this.result);

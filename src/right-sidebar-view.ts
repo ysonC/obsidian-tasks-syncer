@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf } from "obsidian";
+import { ItemView, setIcon, WorkspaceLeaf } from "obsidian";
 import type TaskSyncerPlugin from "src/main";
 import { notify } from "./utils";
 import { updateTask } from "./api";
@@ -9,6 +9,8 @@ export const VIEW_TYPE_TODO_SIDEBAR = "tasks-syncer-sidebar";
 export class TaskSidebarView extends ItemView {
 	plugin: TaskSyncerPlugin;
 	contentContainer: Element;
+	taskContainer: Element;
+	navContainer: Element;
 
 	constructor(leaf: WorkspaceLeaf, plugin: TaskSyncerPlugin) {
 		super(leaf);
@@ -38,46 +40,78 @@ export class TaskSidebarView extends ItemView {
 				"tasks-syncer-content",
 			);
 		}
+		const mainContainer = this.contentContainer;
+
+		// Setup nav header and task container.
+		this.setupNavHeader();
+		this.taskContainer = mainContainer.createDiv("tasks-group");
 
 		this.injectStyles();
-		this.render(null);
-		this.plugin
-			.getTasksFromSelectedList()
-			.then((tasks) => this.render(tasks))
-			.catch((error) => {
-				console.error("Error loading tasks in sidebar:", error);
-				notify("Error loading tasks in sidebar", error);
-			});
+
+		// Render using cache data.
+		this.render();
 	}
 
 	/**
-	 * Setup button for refreshing sidebar tasks.
-	 * @param Container for button
+	 * Setup nav header with refresh and toggle-completed buttons.
 	 */
-	private async setupRefreshButton(container: Element) {
-		const button = container.createEl("button", { text: "Refresh Tasks" });
-		button.onclick = async () => {
-			this.render(null);
+	private async setupNavHeader() {
+		const navContent = this.contentContainer.createDiv("nav-header");
+		const navButtons = navContent.createDiv({ cls: "nav-buttons" });
+
+		// Refresh button.
+		const refreshBtn = navButtons.createEl("a", {
+			cls: "nav-action-button",
+		});
+		setIcon(refreshBtn, "refresh-cw");
+		refreshBtn.title = "Refresh Tasks";
+		refreshBtn.onclick = async () => {
+			// Optional: show spinner immediately
+			this.render();
 			try {
-				const tasks = await this.plugin.refreshTaskCache();
-				this.render(tasks);
+				await this.plugin.refreshTaskCache();
+				this.render();
 			} catch (error) {
 				console.log("Error refreshing tasks:", error);
 				notify("Failed to refresh tasks", "error");
 			}
 		};
+
+		// Toggle button for showing/hiding completed tasks.
+		const toggleComplete = navButtons.createEl("a", {
+			cls: "nav-action-button",
+		});
+		setIcon(toggleComplete, "eye");
+		toggleComplete.title = "Toggle Completed Tasks";
+		toggleComplete.onclick = async () => {
+			await this.flipTogCompleteSetting();
+			this.render();
+		};
 	}
 
-	async render(tasks: Map<string, TaskItem> | null) {
-		const container = this.contentContainer;
+	/**
+	 * Render function which always loads tasks from the plugin cache.
+	 * @param showCompleted Whether to display completed tasks.
+	 */
+	async render() {
+		const showCompleted = this.plugin.settings.showComplete;
+		const container = this.taskContainer;
 		container.empty();
 
-		this.setupRefreshButton(container);
+		// Header using the selected task list title.
+		container.createEl("h4", {
+			text: this.plugin.settings.selectedTaskListTitle,
+		});
 
-		container.createEl("div", { cls: "task-list-spacer" });
-		// container.createEl("h5", { text: "" });
+		// Load the latest data from the cache.
+		const currentData = await this.plugin.loadData();
+		const tasksArray = currentData?.tasks as
+			| [string, TaskItem][]
+			| undefined;
 
-		if (tasks === null) {
+		console.log(tasksArray);
+		if (!tasksArray) {
+			// Display a loading spinner if cache data is not yet available.
 			const spinnerWrapper = container.createDiv({
 				cls: "spinner-wrapper",
 			});
@@ -86,40 +120,36 @@ export class TaskSidebarView extends ItemView {
 			return;
 		}
 
+		const tasks = new Map<string, TaskItem>(tasksArray);
+
 		if (tasks.size === 0) {
-			container.createEl("p", {
-				text: "No tasks found",
-			});
+			container.createEl("p", { text: "No tasks found" });
 			return;
 		}
 
+		// Filter out completed tasks if showCompleted is false,
+		// then sort (completed tasks go last) and render.
 		Array.from(tasks.values())
+			.filter((task) => showCompleted || task.status !== "completed")
 			.sort((a, b) => {
-				// Move completed tasks to the bottom
 				if (a.status === "completed" && b.status !== "completed")
 					return 1;
 				if (a.status !== "completed" && b.status === "completed")
 					return -1;
-				return 0; // Keep original order otherwise
+				return 0;
 			})
 			.forEach((task) => {
-				const line = container.createEl("div", {
-					cls: "task-line",
-				});
+				const line = container.createEl("div", { cls: "task-line" });
 
 				const checkbox = line.createEl("input", {
 					type: "checkbox",
 				}) as HTMLInputElement;
-
 				checkbox.checked = task.status === "completed";
 				checkbox.disabled = false;
 
-				line.createEl("span", {
-					text: task.title,
-				});
+				line.createEl("span", { text: task.title });
 				checkbox.addEventListener("change", async (event) => {
 					checkbox.disabled = true;
-
 					const target = event.target as HTMLInputElement;
 					const newCompletedState = target.checked; // true if checked, false otherwise
 
@@ -128,7 +158,6 @@ export class TaskSidebarView extends ItemView {
 						console.log(
 							`Updating "${task.title}" to ${newCompletedState ? "completed" : "not started"}`,
 						);
-
 						await updateTask(
 							this.plugin.settings,
 							accessToken,
@@ -139,20 +168,14 @@ export class TaskSidebarView extends ItemView {
 						task.status = newCompletedState
 							? "completed"
 							: "notstarted";
-						try {
-							const tasks = await this.plugin.refreshTaskCache();
-							this.render(tasks);
-						} catch (error) {
-							console.log("Error refreshing tasks:", error);
-							notify("Failed to refresh tasks", "error");
-						}
+						await this.plugin.refreshTaskCache();
+						this.render();
 					} catch (error) {
 						console.error(
 							"Error updating task with checkbox:",
 							error,
 						);
 						notify("Failed to update task", "error");
-
 						target.checked = !newCompletedState;
 					} finally {
 						checkbox.disabled = false;
@@ -161,41 +184,66 @@ export class TaskSidebarView extends ItemView {
 			});
 	}
 
-	async onClose() {
-		// Optional cleanup
+	/**
+	 * Toggle the setting for showing completed tasks.
+	 */
+	async flipTogCompleteSetting() {
+		this.plugin.settings.showComplete = !this.plugin.settings.showComplete;
+		await this.plugin.saveSettings();
+		console.log(
+			"Show complete saved as",
+			this.plugin.settings.showComplete,
+		);
 	}
 
+	async onClose() {
+		// Optional cleanup code.
+	}
+
+	/**
+	 * Inject custom CSS styles into the document.
+	 */
 	injectStyles() {
 		const style = document.createElement("style");
 		style.textContent = `
-	.spinner-wrapper {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		padding: 1em;
-	}
-
-	.loading-spinner {
-		width: 24px;
-		height: 24px;
-		border: 3px solid var(--background-modifier-border);
-		border-top: 3px solid var(--text-accent);
-		border-radius: 50%;
-		animation: spin 1s linear infinite;
-		margin-bottom: 0.5em;
-	}
-
-	@keyframes spin {
-		0% { transform: rotate(0deg); }
-		100% { transform: rotate(360deg); }
-	}
-	
-	.task-list-spacer{
-		height: 1em
-	}
-
-	`;
+			.spinner-wrapper {
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				padding: 1em;
+			}
+			.loading-spinner {
+				width: 24px;
+				height: 24px;
+				border: 3px solid var(--background-modifier-border);
+				border-top: 3px solid var(--text-accent);
+				border-radius: 50%;
+				animation: spin 1s linear infinite;
+				margin-bottom: 0.5em;
+			}
+			@keyframes spin {
+				0% { transform: rotate(0deg); }
+				100% { transform: rotate(360deg); }
+			}
+			.task-list-spacer {
+				height: 1em;
+			}
+			.nav-action-button {
+				display: inline-flex;
+				align-items: center;
+				justify-content: center;
+				width: 24px;
+				height: 24px;
+				color: white;
+				background: transparent;
+				border-radius: 4px;
+				transition: background-color 0.2s ease-in-out;
+			}
+			.nav-action-button:hover {
+				background-color: var(--background-modifier-hover, #444);
+			}
+		`;
 		document.head.appendChild(style);
 	}
 }
