@@ -58,25 +58,25 @@ export class TaskSidebarView extends ItemView {
 			});
 	}
 
-	/**
-	 * Setup button for refreshing sidebar tasks.
-	 * @param Container for button
-	 */
-	private async setupRefreshButton() {
-		const button = this.contentContainer.createEl("button", {
-			text: "Refresh Tasks",
-		});
-		button.onclick = async () => {
-			this.render(null);
-			try {
-				const tasks = await this.plugin.refreshTaskCache();
-				this.render(tasks);
-			} catch (error) {
-				console.log("Error refreshing tasks:", error);
-				notify("Failed to refresh tasks", "error");
-			}
-		};
-	}
+	// /**
+	//  * Setup button for refreshing sidebar tasks.
+	//  * @param Container for button
+	//  */
+	// private async setupRefreshButton() {
+	// 	const button = this.contentContainer.createEl("button", {
+	// 		text: "Refresh Tasks",
+	// 	});
+	// 	button.onclick = async () => {
+	// 		this.render(null);
+	// 		try {
+	// 			const tasks = await this.plugin.refreshTaskCache();
+	// 			this.render(tasks);
+	// 		} catch (error) {
+	// 			console.log("Error refreshing tasks:", error);
+	// 			notify("Failed to refresh tasks", "error");
+	// 		}
+	// 	};
+	// }
 
 	/**
 	 * Setup nav header for storing buttons
@@ -101,9 +101,23 @@ export class TaskSidebarView extends ItemView {
 				notify("Failed to refresh tasks", "error");
 			}
 		};
+
+		const toggleComplete = navButtons.createEl("a", {
+			cls: "nav-action-button",
+		});
+		setIcon(toggleComplete, "eye");
+		toggleComplete.title = "Toggle-complete";
+		toggleComplete.onclick = async () => {
+			this.flipTogCompleteSetting();
+			const tasks = await this.plugin.getTaskFromCache();
+			this.render(tasks, this.plugin.settings.showComplete);
+		};
 	}
 
-	async render(tasks: Map<string, TaskItem> | null) {
+	async render(
+		tasks: Map<string, TaskItem> | null,
+		showCompleted: boolean = true,
+	) {
 		const container = this.taskContainer;
 		container.empty();
 
@@ -129,6 +143,7 @@ export class TaskSidebarView extends ItemView {
 		}
 
 		Array.from(tasks.values())
+			.filter((tasks) => showCompleted || tasks.status !== "completed")
 			.sort((a, b) => {
 				// Move completed tasks to the bottom
 				if (a.status === "completed" && b.status !== "completed")
@@ -196,6 +211,15 @@ export class TaskSidebarView extends ItemView {
 			});
 	}
 
+	async flipTogCompleteSetting() {
+		this.plugin.settings.showComplete = !this.plugin.settings.showComplete;
+		await this.plugin.saveSettings();
+		console.log(
+			"Show complete save to ",
+			this.plugin.settings.showComplete,
+		);
+	}
+
 	async onClose() {
 		// Optional cleanup
 	}
@@ -214,7 +238,7 @@ export class TaskSidebarView extends ItemView {
 	.loading-spinner {
 		width: 24px;
 		height: 24px;
-		border: 3px solid var(--background-modifier-border);
+	border: 3px solid var(--background-modifier-border);
 		border-top: 3px solid var(--text-accent);
 		border-radius: 50%;
 		animation: spin 1s linear infinite;

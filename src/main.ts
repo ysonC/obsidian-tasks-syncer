@@ -649,6 +649,16 @@ export default class TaskSyncerPlugin extends Plugin {
 		).open();
 	}
 
+	async getTaskFromCache(): Promise<Map<string, TaskItem>> {
+		const currentData = (await this.loadData()) || {};
+		const tasksArray = currentData.tasks;
+		if (!tasksArray) {
+			throw new Error("No task found.");
+		}
+		const tasks = new Map<string, TaskItem>(tasksArray);
+		return tasks;
+	}
+
 	/**
 	 * Fetch task using api function and store in the cache for quick access.
 	 */

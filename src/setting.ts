@@ -5,6 +5,8 @@ export interface MyTodoSettings {
 	selectedTaskListId: string;
 	selectedTaskListTitle: string;
 
+	showComplete: boolean;
+
 	// A list of available task lists, each with an id and display name.
 	taskLists: Array<{ id: string; title: string }>;
 	clientId: string;
@@ -15,6 +17,7 @@ export interface MyTodoSettings {
 export const DEFAULT_SETTINGS: MyTodoSettings = {
 	selectedTaskListId: "",
 	selectedTaskListTitle: "",
+	showComplete: true,
 	taskLists: [],
 	clientId: "",
 	clientSecret: "",
