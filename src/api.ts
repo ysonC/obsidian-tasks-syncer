@@ -119,10 +119,13 @@ export async function fetchTaskLists(
 	console.log("Task lists data:", data);
 	if (data.value && Array.isArray(data.value)) {
 		for (const list of data.value) {
-			taskLists.push({ title: list.displayName, id: list.id });
+			let title = list.displayName;
+			if (title === "工作") {
+				title = "Tasks";
+			}
+			taskLists.push({ title, id: list.id });
 		}
 	}
-
 	return taskLists;
 }
 
