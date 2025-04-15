@@ -107,7 +107,10 @@ export class TaskSidebarView extends ItemView {
 		const container = this.taskContainer;
 		container.empty();
 
-		container.createEl("div", { cls: "task-list-spacer" });
+		container.createEl("h4", {
+			text: this.plugin.settings.selectedTaskListTitle,
+		});
+		// container.createEl("div", { cls: "task-list-spacer" });
 
 		if (tasks === null) {
 			const spinnerWrapper = container.createDiv({

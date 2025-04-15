@@ -593,6 +593,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			(taskList) => taskList.title,
 			async (taskList: TaskList) => {
 				this.settings.selectedTaskListId = taskList.id;
+				this.settings.selectedTaskListTitle = taskList.title;
 				await this.saveSettings();
 				await this.refreshViewAndCache();
 			},

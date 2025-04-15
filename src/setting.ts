@@ -3,6 +3,8 @@ import TaskSyncerPlugin from "src/main";
 
 export interface MyTodoSettings {
 	selectedTaskListId: string;
+	selectedTaskListTitle: string;
+
 	// A list of available task lists, each with an id and display name.
 	taskLists: Array<{ id: string; title: string }>;
 	clientId: string;
@@ -12,6 +14,7 @@ export interface MyTodoSettings {
 
 export const DEFAULT_SETTINGS: MyTodoSettings = {
 	selectedTaskListId: "",
+	selectedTaskListTitle: "",
 	taskLists: [],
 	clientId: "",
 	clientSecret: "",
@@ -107,6 +110,12 @@ export class MyTodoSettingTab extends PluginSettingTab {
 				drop.setValue(this.settings.selectedTaskListId);
 				drop.onChange(async (value: string) => {
 					this.settings.selectedTaskListId = value;
+					const matchingList = this.settings.taskLists.find(
+						(list) => list.id === value,
+					);
+					this.settings.selectedTaskListTitle = matchingList
+						? matchingList.title
+						: "";
 					await this.plugin.saveSettings();
 				});
 			});
