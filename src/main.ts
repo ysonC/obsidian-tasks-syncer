@@ -188,19 +188,15 @@ export default class TaskSyncerPlugin extends Plugin {
 			id: "push-one-task",
 			name: "Create and push Task",
 			callback: async () => {
-				new TaskTitleModal(this.app, async (taskTitle: string) => {
-					try {
-						notify("Pushing tasks to Microsoft To-Do...");
-						await this.pushOneTask(taskTitle);
-						notify(`Tasks pushed successfully!`, "success");
-					} catch (error) {
-						console.error("Error pushing tasks:", error);
-						notify(
-							"Error pushing tasks. Check the console for details.",
-							"error",
-						);
-					}
-				}).open();
+				try {
+					await this.openPushTaskModal();
+				} catch (error) {
+					console.error("Error opening push task modal: ", error);
+					notify(
+						"Error opening push task modal. Check the console for details.",
+						"error",
+					);
+				}
 			},
 		});
 
@@ -585,6 +581,25 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 
 		return tasksMap;
+	}
+
+	/**
+	 * Open an interactive window to create task and push it.
+	 */
+	async openPushTaskModal() {
+		new TaskTitleModal(this.app, async (taskTitle: string) => {
+			try {
+				notify("Pushing tasks to Microsoft To-Do...");
+				await this.pushOneTask(taskTitle);
+				notify(`Tasks pushed successfully!`, "success");
+			} catch (error) {
+				console.error("Error pushing tasks:", error);
+				notify(
+					"Error pushing tasks. Check the console for details.",
+					"error",
+				);
+			}
+		}).open();
 	}
 
 	/**
