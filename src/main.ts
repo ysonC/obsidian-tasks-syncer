@@ -724,9 +724,9 @@ export default class TaskSyncerPlugin extends Plugin {
 	 * Refreshes the sidebar view and task cache to display the latest tasks.
 	 */
 	async refreshViewAndCache() {
-		const tasks = await this.refreshTaskCache();
+		await this.refreshTaskCache();
 		if (this.sidebarView) {
-			await this.sidebarView.render(tasks);
+			await this.sidebarView.render();
 		} else {
 			console.warn("Sidebar view is not active.");
 		}
