@@ -17,6 +17,7 @@ import {
 	updateTask,
 	fetchTaskLists,
 	deleteTask,
+	updateTaskListName,
 } from "src/api";
 import { AuthManager } from "src/auth";
 import { TaskTitleModal } from "src/task-title-modal";
@@ -278,7 +279,13 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Testing",
 			callback: async () => {
 				try {
-					console.log("Testing");
+					console.log("Change name");
+					const newName = "Tasks";
+					updateTaskListName(
+						this.settings,
+						await this.getAccessToken(),
+						newName,
+					);
 					notify("Testing...", "success");
 				} catch (error) {
 					console.error("Error testing:", error);

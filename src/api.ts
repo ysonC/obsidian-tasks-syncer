@@ -150,3 +150,27 @@ export async function deleteTask(
 		throw new Error(`Failed to delete task: ${response.text}`);
 	}
 }
+
+export async function updateTaskListName(
+	settings: MyTodoSettings,
+	accessToken: string,
+	newName: string,
+) {
+	const endpoint = `https://graph.microsoft.com/v1.0/me/todo/lists/${settings.selectedTaskListId}`;
+	const response = await fetch(endpoint, {
+		method: "PATCH",
+		headers: {
+			"Content-Type": "application/json",
+			Authorization: `Bearer ${accessToken}`,
+		},
+		body: JSON.stringify({
+			displayName: newName,
+		}),
+	});
+
+	if (!response.ok) {
+		throw new Error(`Error updating list name: ${response.statusText}`);
+	}
+
+	return await response.json();
+}
