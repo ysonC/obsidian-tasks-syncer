@@ -22,31 +22,7 @@ import { AuthManager } from "src/auth";
 import { TaskTitleModal } from "src/task-title-modal";
 import { GenericSelectModal } from "src/select-modal";
 import { notify } from "./utils";
-
-/**
- * Interface for the task cache.
- */
-interface TaskCache {
-	tasks: Array<[string, { title: string; status: string; id: string }]>;
-	lastUpdated: number;
-}
-
-/**
- * Interface for task item.
- */
-interface TaskItem {
-	title: string;
-	status: string;
-	id: string;
-}
-
-/**
- *  Interface for task lists.
- */
-interface TaskList {
-	title: string;
-	id: string;
-}
+import { TaskCache, TaskItem, TaskList } from "./types";
 
 /**
  * Main plugin class for syncing tasks between Obsidian and Microsoft To‑Do.
@@ -425,9 +401,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	 * Fetches tasks from the selected Microsoft To‑Do list.
 	 * @returns A map of task title to an object containing task details.
 	 */
-	async getTasksFromSelectedList(): Promise<
-		Map<string, { title: string; status: string; id: string }>
-	> {
+	async getTasksFromSelectedList(): Promise<Map<string, TaskItem>> {
 		if (!this.settings.selectedTaskListId) {
 			throw new Error(
 				"No task list selected. Please choose one in settings.",
@@ -655,9 +629,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	/**
 	 * Fetch task using api function and store in the cache for quick access.
 	 */
-	async refreshTaskCache(): Promise<
-		Map<string, { title: string; status: string; id: string }>
-	> {
+	async refreshTaskCache(): Promise<Map<string, TaskItem>> {
 		if (!this.settings.selectedTaskListId) {
 			throw new Error(
 				"No task list selected. Please choose one in settings.",
