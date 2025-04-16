@@ -21,21 +21,6 @@ jobs:
 
             - run: npm ci
 
-            - name: Bump Version Based on Source Branch Name
-              if: ${{ github.event.pull_request.merged == true }}
-              run: |
-                  SOURCE_BRANCH="${{ github.event.pull_request.head.ref }}"
-                  echo "Source branch: $SOURCE_BRANCH"
-                  git config user.name "Wyson Cheng"
-                  git config user.email "wyson002@gmail.com"
-                  if [[ "$SOURCE_BRANCH" == feature/* ]]; then
-                    echo "Detected feature branch merge. Bumping minor version."
-                    npm version minor
-                  else
-                    echo "Non-feature branch merge. Bumping patch version."
-                    npm version patch
-                  fi
-
             - run: npm run build
 
             - name: Get version from manifest.json
