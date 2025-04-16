@@ -1,7 +1,7 @@
 {
 	"id": "task-syncer-plugin",
 	"name": "Task Syncer",
-	"version": "1.2.0",
+	"version": "1.0.3",
 	"minAppVersion": "0.15.0",
 	"description": "Sync tasks between Obsidian and other task management tools",
 	"author": "Wyson Cheng",
