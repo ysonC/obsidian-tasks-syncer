@@ -247,9 +247,7 @@ export class TaskSidebarView extends ItemView {
 		return tasks;
 	}
 
-	async onClose() {
-		// Optional cleanup code.
-	}
+	async onClose() { }
 
 	/**
 	 * Inject custom CSS styles into the document.
