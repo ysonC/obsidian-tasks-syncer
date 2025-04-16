@@ -1,7 +1,8 @@
 name: Release Obsidian Plugin
 
 on:
-    push:
+    pull_request:
+        types: [closed]
         branches:
             - main
 
@@ -12,13 +13,26 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
-                  fetch-depth: 0 # needed for tagging
+                  fetch-depth: 0
 
             - uses: actions/setup-node@v3
               with:
                   node-version: "18"
 
             - run: npm ci
+
+            - name: Bump Version Based on Source Branch Name
+              if: ${{ github.event.pull_request.merged == true }}
+              run: |
+                  SOURCE_BRANCH="${{ github.event.pull_request.head.ref }}"
+                  echo "Source branch: $SOURCE_BRANCH"
+                  if [[ "$SOURCE_BRANCH" == feature/* ]]; then
+                    echo "Detected feature branch merge. Bumping minor version."
+                    npm version minor
+                  else
+                    echo "Non-feature branch merge. Bumping patch version."
+                    npm version patch
+                  fi
 
             - run: npm run build
 
