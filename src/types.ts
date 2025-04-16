@@ -21,5 +21,10 @@ export interface TaskItem {
 	title: string;
 	status: string;
 	id: string;
-	dueDateTime?: string;
+	dueDateTime?: DateTimeInfo;
+}
+
+interface DateTimeInfo {
+	dateTime: string;
+	timeZone: string;
 }
