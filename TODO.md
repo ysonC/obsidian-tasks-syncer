@@ -2,8 +2,8 @@
 
 ## Feature/show-due-date
 
-- [ ] Add show due date
-- [ ] Sort by due date for side bar
+- [x] Add show due date
+- [x] Sort by due date for side bar
 - [ ] Add icon if due day is close, can be set in setting
 
 # Complete
