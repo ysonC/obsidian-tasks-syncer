@@ -674,11 +674,14 @@ export default class TaskSyncerPlugin extends Plugin {
 			const tasks = await fetchTasks(this.settings, accessToken);
 			console.log("Fetched Tasks:", tasks);
 
-			const currentData = (await this.loadData()) || {};
-			currentData.tasks = Array.from(tasks.entries());
+			// const currentData = (await this.loadData()) || {};
+			// currentData.tasks = Array.from(tasks.entries());
+			//
+			// this.taskCache = currentData;
+			// await this.saveData(currentData);
 
-			this.taskCache = currentData;
-			await this.saveData(currentData);
+			this.taskCache = { tasks: Array.from(tasks.entries()) };
+			console.log("Real taskCache: ", this.taskCache);
 
 			return tasks;
 		} catch (error) {
