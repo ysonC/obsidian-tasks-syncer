@@ -13,7 +13,7 @@ jobs:
         steps:
             - uses: actions/checkout@v4
               with:
-                  fetch-depth: 0
+                  fetch-depth: 0 # needed for tagging
 
             - uses: actions/setup-node@v3
               with:
@@ -21,11 +21,16 @@ jobs:
 
             - run: npm ci
 
+            # Bump the version based on the source branch name.
+            # Only run if the pull request was merged.
             - name: Bump Version Based on Source Branch Name
               if: ${{ github.event.pull_request.merged == true }}
               run: |
                   SOURCE_BRANCH="${{ github.event.pull_request.head.ref }}"
                   echo "Source branch: $SOURCE_BRANCH"
+                  # Configure git settings so that npm version can commit
+                  git config user.name "github-actions[bot]"
+                  git config user.email "github-actions[bot]@users.noreply.github.com"
                   if [[ "$SOURCE_BRANCH" == feature/* ]]; then
                     echo "Detected feature branch merge. Bumping minor version."
                     npm version minor
@@ -35,6 +40,10 @@ jobs:
                   fi
 
             - run: npm run build
+
+            # (Skip version-bump script step since npm version now also handles manifest update.)
+            #- name: Run version-bump Script
+            #  run: node --experimental-specifier-resolution=node version-bump.mjs
 
             - name: Get version from manifest.json
               id: get_version
