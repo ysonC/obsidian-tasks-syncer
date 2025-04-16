@@ -3,7 +3,6 @@
  */
 export interface TaskCache {
 	tasks: Array<[string, TaskItem]>;
-	lastUpdated: number;
 }
 
 /**

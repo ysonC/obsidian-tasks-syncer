@@ -121,11 +121,8 @@ export class TaskSidebarView extends ItemView {
 			text: this.plugin.settings.selectedTaskListTitle,
 		});
 
-		const currentData = await this.plugin.loadData();
-		const tasksArray = currentData?.tasks as
-			| [string, TaskItem][]
-			| undefined;
-
+		const tasksCache = this.plugin.taskCache;
+		const tasksArray = this.plugin.taskCache?.tasks as [string, TaskItem][];
 		const tasks = new Map<string, TaskItem>(tasksArray);
 
 		if (tasks.size === 0) {
