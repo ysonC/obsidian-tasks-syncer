@@ -42,14 +42,19 @@ export class TaskSidebarView extends ItemView {
 		}
 		const mainContainer = this.contentContainer;
 
-		// Setup nav header and task container.
 		this.setupNavHeader();
 		this.taskContainer = mainContainer.createDiv("tasks-group");
 
 		this.injectStyles();
 
-		// Render using cache data.
 		this.render();
+		this.plugin
+			.refreshTaskCache()
+			.then(() => this.render())
+			.catch((error) => {
+				console.error("Error loading tasks in sidebar:", error);
+				notify("Error loading tasks in sidebar", error);
+			});
 	}
 
 	/**
@@ -98,27 +103,14 @@ export class TaskSidebarView extends ItemView {
 		const container = this.taskContainer;
 		container.empty();
 
-		// Header using the selected task list title.
 		container.createEl("h4", {
 			text: this.plugin.settings.selectedTaskListTitle,
 		});
 
-		// Load the latest data from the cache.
 		const currentData = await this.plugin.loadData();
 		const tasksArray = currentData?.tasks as
 			| [string, TaskItem][]
 			| undefined;
-
-		console.log(tasksArray);
-		if (!tasksArray) {
-			// Display a loading spinner if cache data is not yet available.
-			const spinnerWrapper = container.createDiv({
-				cls: "spinner-wrapper",
-			});
-			spinnerWrapper.createDiv({ cls: "loading-spinner" });
-			spinnerWrapper.createEl("p", { text: "Loading tasks..." });
-			return;
-		}
 
 		const tasks = new Map<string, TaskItem>(tasksArray);
 
@@ -127,9 +119,7 @@ export class TaskSidebarView extends ItemView {
 			return;
 		}
 
-		// Filter out completed tasks if showCompleted is false,
-		// then sort (completed tasks go last) and render.
-		Array.from(tasks.values())
+		const filteredTasks = Array.from(tasks.values())
 			.filter((task) => showCompleted || task.status !== "completed")
 			.sort((a, b) => {
 				if (a.status === "completed" && b.status !== "completed")
@@ -137,51 +127,64 @@ export class TaskSidebarView extends ItemView {
 				if (a.status !== "completed" && b.status === "completed")
 					return -1;
 				return 0;
-			})
-			.forEach((task) => {
-				const line = container.createEl("div", { cls: "task-line" });
-
-				const checkbox = line.createEl("input", {
-					type: "checkbox",
-				}) as HTMLInputElement;
-				checkbox.checked = task.status === "completed";
-				checkbox.disabled = false;
-
-				line.createEl("span", { text: task.title });
-				checkbox.addEventListener("change", async (event) => {
-					checkbox.disabled = true;
-					const target = event.target as HTMLInputElement;
-					const newCompletedState = target.checked; // true if checked, false otherwise
-
-					try {
-						const accessToken = await this.plugin.getAccessToken();
-						console.log(
-							`Updating "${task.title}" to ${newCompletedState ? "completed" : "not started"}`,
-						);
-						await updateTask(
-							this.plugin.settings,
-							accessToken,
-							task.id,
-							newCompletedState,
-						);
-
-						task.status = newCompletedState
-							? "completed"
-							: "notstarted";
-						await this.plugin.refreshTaskCache();
-						this.render();
-					} catch (error) {
-						console.error(
-							"Error updating task with checkbox:",
-							error,
-						);
-						notify("Failed to update task", "error");
-						target.checked = !newCompletedState;
-					} finally {
-						checkbox.disabled = false;
-					}
-				});
 			});
+
+		filteredTasks.forEach((task) => {
+			this.renderTaskLine(task);
+		});
+	}
+
+	/**
+	 * Render a single task line.
+	 */
+	renderTaskLine(task: TaskItem) {
+		const line = this.taskContainer.createEl("div", { cls: "task-line" });
+		const checkbox = line.createEl("input", {
+			type: "checkbox",
+		}) as HTMLInputElement;
+		checkbox.checked = task.status === "completed";
+		checkbox.disabled = false;
+		line.createEl("span", { text: task.title });
+
+		checkbox.addEventListener("change", async (event) => {
+			await this.handleTaskStatusChange(event, task, checkbox);
+		});
+	}
+
+	/**
+	 * Handle the checkbox change event for a task.
+	 */
+	async handleTaskStatusChange(
+		event: Event,
+		task: TaskItem,
+		checkbox: HTMLInputElement,
+	) {
+		checkbox.disabled = true;
+		const target = event.target as HTMLInputElement;
+		const newCompletedState = target.checked;
+
+		try {
+			const accessToken = await this.plugin.getAccessToken();
+			console.log(
+				`Updating "${task.title}" to ${newCompletedState ? "completed" : "not started"}`,
+			);
+			await updateTask(
+				this.plugin.settings,
+				accessToken,
+				task.id,
+				newCompletedState,
+			);
+			task.status = newCompletedState ? "completed" : "notstarted";
+			await this.plugin.refreshTaskCache();
+			this.render();
+		} catch (error) {
+			console.error("Error updating task with checkbox:", error);
+			notify("Failed to update task", "error");
+			// Revert checkbox state on error.
+			target.checked = !newCompletedState;
+		} finally {
+			checkbox.disabled = false;
+		}
 	}
 
 	/**

@@ -27,11 +27,14 @@ export async function fetchTasks(
 	if (data.value && Array.isArray(data.value)) {
 		for (const task of data.value) {
 			const title = task.title.trim();
-			tasks.set(title, { title, status: task.status, id: task.id });
+			tasks.set(title, {
+				title,
+				status: task.status,
+				id: task.id,
+				dueDateTime: task.dueDateTime,
+			});
 		}
 	}
-
-	console.log("Here is the raw data: ", data);
 	return tasks;
 }
 
