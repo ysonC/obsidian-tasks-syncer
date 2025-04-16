@@ -92,6 +92,19 @@ export class TaskSidebarView extends ItemView {
 			await this.flipTogCompleteSetting();
 			this.render();
 		};
+
+		// Toggle button for showing/hiding completed tasks.
+		const toggleDueDate = navButtons.createEl("a", {
+			cls: "nav-action-button",
+		});
+		setIcon(toggleDueDate, "calendar-arrow-up");
+		toggleDueDate.title = "Toggle Due Date";
+		toggleDueDate.onclick = async () => {
+			this.plugin.settings.showDueDate =
+				!this.plugin.settings.showDueDate;
+			await this.plugin.saveSettings();
+			this.render();
+		};
 	}
 
 	/**
@@ -100,6 +113,7 @@ export class TaskSidebarView extends ItemView {
 	 */
 	async render() {
 		const showCompleted = this.plugin.settings.showComplete;
+		const showDueDate = this.plugin.settings.showDueDate;
 		const container = this.taskContainer;
 		container.empty();
 
@@ -119,7 +133,7 @@ export class TaskSidebarView extends ItemView {
 			return;
 		}
 
-		const filteredTasks = Array.from(tasks.values())
+		let filteredTasks = Array.from(tasks.values())
 			.filter((task) => showCompleted || task.status !== "completed")
 			.sort((a, b) => {
 				if (a.status === "completed" && b.status !== "completed")
@@ -128,6 +142,8 @@ export class TaskSidebarView extends ItemView {
 					return -1;
 				return 0;
 			});
+
+		filteredTasks = this.sortDueDate(showDueDate, filteredTasks);
 
 		filteredTasks.forEach((task) => {
 			this.renderTaskLine(task);
@@ -142,8 +158,8 @@ export class TaskSidebarView extends ItemView {
 		const checkbox = line.createEl("input", {
 			type: "checkbox",
 		}) as HTMLInputElement;
+
 		checkbox.checked = task.status === "completed";
-		checkbox.disabled = false;
 		line.createEl("span", { text: task.title });
 
 		checkbox.addEventListener("change", async (event) => {
@@ -165,22 +181,19 @@ export class TaskSidebarView extends ItemView {
 
 		try {
 			const accessToken = await this.plugin.getAccessToken();
-			console.log(
-				`Updating "${task.title}" to ${newCompletedState ? "completed" : "not started"}`,
-			);
 			await updateTask(
 				this.plugin.settings,
 				accessToken,
 				task.id,
 				newCompletedState,
 			);
+
 			task.status = newCompletedState ? "completed" : "notstarted";
 			await this.plugin.refreshTaskCache();
 			this.render();
 		} catch (error) {
 			console.error("Error updating task with checkbox:", error);
 			notify("Failed to update task", "error");
-			// Revert checkbox state on error.
 			target.checked = !newCompletedState;
 		} finally {
 			checkbox.disabled = false;
@@ -197,6 +210,28 @@ export class TaskSidebarView extends ItemView {
 			"Show complete saved as",
 			this.plugin.settings.showComplete,
 		);
+	}
+
+	sortDueDate(show: boolean, tasks: TaskItem[]): TaskItem[] {
+		if (!show) return tasks;
+		tasks.sort((a, b) => {
+			if (a.dueDateTime === undefined && b.dueDateTime === undefined) {
+				return 0;
+			}
+
+			if (a.dueDateTime === undefined) {
+				return 1;
+			}
+
+			if (b.dueDateTime === undefined) {
+				return -1;
+			}
+
+			const dateA = new Date(a.dueDateTime.dateTime);
+			const dateB = new Date(b.dueDateTime.dateTime);
+			return dateA.getTime() - dateB.getTime();
+		});
+		return tasks;
 	}
 
 	async onClose() {
