@@ -160,7 +160,20 @@ export class TaskSidebarView extends ItemView {
 		}) as HTMLInputElement;
 
 		checkbox.checked = task.status === "completed";
-		line.createEl("span", { text: task.title });
+		const detailsContainer = line.createEl("div", { cls: "task-details" });
+
+		detailsContainer.createEl("div", {
+			cls: "task-title",
+			text: task.title,
+		});
+
+		const dueDate = task.dueDateTime?.dateTime
+			? task.dueDateTime.dateTime.split("T")[0]
+			: "";
+		detailsContainer.createEl("div", {
+			cls: "task-due-date",
+			text: dueDate,
+		});
 
 		checkbox.addEventListener("change", async (event) => {
 			await this.handleTaskStatusChange(event, task, checkbox);
@@ -280,6 +293,10 @@ export class TaskSidebarView extends ItemView {
 			}
 			.nav-action-button:hover {
 				background-color: var(--background-modifier-hover, #444);
+			}
+			.task-due-date{
+				font-size: 0.8em;
+				color: #777;
 			}
 		`;
 		document.head.appendChild(style);
