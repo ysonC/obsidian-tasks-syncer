@@ -166,6 +166,15 @@ export class TaskSidebarView extends ItemView {
 		const dueDate = task.dueDateTime?.dateTime
 			? task.dueDateTime.dateTime.split("T")[0]
 			: "";
+		//
+		// const today = new Date().toISOString().split("T")[0];
+		// const tomorrow = new Date();
+		// tomorrow.setDate(new Date().getDate() + 1);
+		//
+		// console.log("DueDate = ", dueDate);
+		// console.log("Today = ", today);
+		//
+		// if (dueDate === today) console.log("ITS TODAY!!!");
 		detailsContainer.createEl("div", {
 			cls: "task-due-date",
 			text: dueDate,
@@ -241,6 +250,11 @@ export class TaskSidebarView extends ItemView {
 			return dateA.getTime() - dateB.getTime();
 		});
 		return tasks;
+	}
+
+	convertDate(date: Date): string {
+		const convertDate = "";
+		return convertDate;
 	}
 
 	async onClose() { }

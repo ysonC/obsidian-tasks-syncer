@@ -1,5 +1,6 @@
 # Todo
 
+- [ ] Add option in setting to set time zone
 - [ ] Beautify nav-header
 - [ ] Alway sort complete task at the bottom
 - [ ] Change icon when toggle

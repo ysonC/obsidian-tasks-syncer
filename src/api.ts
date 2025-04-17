@@ -16,7 +16,10 @@ export async function fetchTasks(
 	const response = await requestUrl({
 		url: `https://graph.microsoft.com/v1.0/me/todo/lists/${settings.selectedTaskListId}/tasks`,
 		method: "GET",
-		headers: { Authorization: `Bearer ${accessToken}` },
+		headers: {
+			Authorization: `Bearer ${accessToken}`,
+			Prefer: `outlook.timezone="GMT Standard Time"`,
+		},
 	});
 
 	if (response.status !== 200) {
@@ -24,6 +27,7 @@ export async function fetchTasks(
 	}
 
 	const data = response.json;
+	console.log("Date raw: ", data);
 	if (data.value && Array.isArray(data.value)) {
 		for (const task of data.value) {
 			const title = task.title.trim();

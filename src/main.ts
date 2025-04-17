@@ -275,13 +275,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Testing",
 			callback: async () => {
 				try {
-					console.log("Change name");
-					const newName = "Tasks";
-					updateTaskListName(
-						this.settings,
-						await this.getAccessToken(),
-						newName,
-					);
+					console.log("Testing update time zone");
 					notify("Testing...", "success");
 				} catch (error) {
 					console.error("Error testing:", error);
