@@ -7,7 +7,7 @@
 
 ## Feature/edit-due-date
 
-- [ ] Change due date to Today or Tomorrow
+- [x] Change due date to Today or Tomorrow
 - [ ] Add function to update or add due date
 
 # Complete
