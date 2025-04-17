@@ -1,13 +1,20 @@
 # Todo
 
+- [ ] Beautify nav-header
+- [ ] Alway sort complete task at the bottom
+- [ ] Change icon when toggle
+
+## Feature/edit-due-date
+
+- [ ] Change due date to Today or Tomorrow
+- [ ] Add function to update or add due date
+
+# Complete
+
 ## Feature/show-due-date
 
 - [x] Add show due date
 - [x] Sort by due date for side bar
-- [ ] Add icon if due day is close, can be set in setting
-- [ ] Testing action
-
-# Complete
 
 ## Feature/toggle-complete
 
