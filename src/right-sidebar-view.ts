@@ -166,18 +166,10 @@ export class TaskSidebarView extends ItemView {
 		const dueDate = task.dueDateTime?.dateTime
 			? task.dueDateTime.dateTime.split("T")[0]
 			: "";
-		//
-		// const today = new Date().toISOString().split("T")[0];
-		// const tomorrow = new Date();
-		// tomorrow.setDate(new Date().getDate() + 1);
-		//
-		// console.log("DueDate = ", dueDate);
-		// console.log("Today = ", today);
-		//
-		// if (dueDate === today) console.log("ITS TODAY!!!");
+
 		detailsContainer.createEl("div", {
 			cls: "task-due-date",
-			text: dueDate,
+			text: this.convertDate(dueDate),
 		});
 
 		checkbox.addEventListener("change", async (event) => {
@@ -252,9 +244,16 @@ export class TaskSidebarView extends ItemView {
 		return tasks;
 	}
 
-	convertDate(date: Date): string {
-		const convertDate = "";
-		return convertDate;
+	convertDate(date: string): string {
+		const today = new Date();
+		const tomorrow = new Date(today);
+		tomorrow.setDate(new Date().getDate() + 1);
+
+		if (date === today.toISOString().split("T")[0]) return "Today";
+		else if (date === tomorrow.toISOString().split("T")[0])
+			return "Tomorrow";
+
+		return date;
 	}
 
 	async onClose() { }
