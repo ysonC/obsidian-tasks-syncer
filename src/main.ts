@@ -430,6 +430,7 @@ export default class TaskSyncerPlugin extends Plugin {
 							this.settings,
 							accessToken,
 							existingTask.id,
+							undefined,
 							true,
 						);
 					} else {
@@ -594,7 +595,13 @@ export default class TaskSyncerPlugin extends Plugin {
 			async (task: { title: string; status: string; id: string }) => {
 				notify(`Marking "${task.title}" as complete...`);
 				const accessToken = await this.getAccessToken();
-				await updateTask(this.settings, accessToken, task.id, true);
+				await updateTask(
+					this.settings,
+					accessToken,
+					task.id,
+					undefined,
+					true,
+				);
 				notify(
 					`Task "${task.title}" marked as complete and synced.`,
 					"success",
