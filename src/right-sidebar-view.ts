@@ -65,29 +65,21 @@ export class TaskSidebarView extends ItemView {
 			this.getNewTasks();
 		};
 
-		// Toggle button for showing/hiding completed tasks.
-		const toggleComplete = navButtons.createEl("a", {
-			cls: "nav-action-button",
-		});
-		setIcon(toggleComplete, "eye");
-		toggleComplete.title = "Toggle Completed Tasks";
-		toggleComplete.onclick = async () => {
-			await this.flipTogCompleteSetting();
-			this.render();
-		};
-
-		// Toggle button for showing/hiding completed tasks.
-		const toggleDueDate = navButtons.createEl("a", {
-			cls: "nav-action-button",
-		});
-		setIcon(toggleDueDate, "calendar-arrow-up");
-		toggleDueDate.title = "Toggle Due Date";
-		toggleDueDate.onclick = async () => {
-			this.plugin.settings.showDueDate =
-				!this.plugin.settings.showDueDate;
-			await this.plugin.saveSettings();
-			this.render();
-		};
+		this.createToggleButton(
+			navButtons,
+			() => this.plugin.settings.showComplete,
+			() => this.flipSetting("showComplete"),
+			{ on: "eye-off", off: "eye" },
+			"Toggle Completed Tasks",
+		);
+		// Due‑date toggle
+		this.createToggleButton(
+			navButtons,
+			() => this.plugin.settings.showDueDate,
+			() => this.flipSetting("showDueDate"),
+			{ on: "calendar", off: "calendar-arrow-up" },
+			"Toggle Due Dates",
+		);
 	}
 
 	/**
@@ -216,8 +208,9 @@ export class TaskSidebarView extends ItemView {
 	/**
 	 * Toggle the setting for showing completed tasks.
 	 */
-	async flipTogCompleteSetting() {
-		this.plugin.settings.showComplete = !this.plugin.settings.showComplete;
+	async flipSetting<K extends keyof TaskSyncerPlugin["settings"]>(key: K) {
+		// @ts-expect-error
+		this.plugin.settings[key] = !this.plugin.settings[key];
 		await this.plugin.saveSettings();
 	}
 
@@ -262,6 +255,34 @@ export class TaskSidebarView extends ItemView {
 			return "Tomorrow";
 
 		return date;
+	}
+
+	/**
+	 * Create toggle button
+	 */
+	private createToggleButton(
+		parent: HTMLElement,
+		getState: () => boolean,
+		flipState: () => Promise<void>,
+		icons: { on: string; off: string },
+		title: string,
+	): HTMLAnchorElement {
+		const btn = parent.createEl("a", { cls: "nav-action-button" });
+		btn.title = title;
+
+		const updateIcon = () => {
+			setIcon(btn, getState() ? icons.off : icons.on);
+		};
+
+		updateIcon();
+
+		btn.onclick = async () => {
+			await flipState();
+			updateIcon();
+			this.render();
+		};
+
+		return btn;
 	}
 
 	async onClose() { }

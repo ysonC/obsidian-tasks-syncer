@@ -1,7 +1,7 @@
 # Todo
 
 - [ ] Add option in setting to set time zone
-- [ ] Change icon when toggle
+- [x] Change icon when toggle
 - [>] Beautify nav-header
 - [x] Alway sort complete task at the bottom
 - [x] Change css injection to proper file
