@@ -119,15 +119,17 @@ export class TaskSidebarView extends ItemView {
 			text: this.plugin.settings.selectedTaskListTitle,
 		});
 
-		const tasksArray = this.plugin.taskCache?.tasks as [string, TaskItem][];
-		const tasks = new Map<string, TaskItem>(tasksArray);
-
-		if (tasks.size === 0) {
+		const tasksArray =
+			this.plugin.taskCache?.tasks ?? ([] as [string, TaskItem][]);
+		if (tasksArray.length === 0) {
 			container.createEl("p", { text: "No tasks found" });
 			return;
 		}
 
-		let filteredTasks = Array.from(tasks.values())
+		const tasks = tasksArray.map(([_, task]) => task);
+
+		let filteredTasks = this.sortDueDate(showDueDate, tasks);
+		filteredTasks = tasks
 			.filter((task) => showCompleted || task.status !== "completed")
 			.sort((a, b) => {
 				if (a.status === "completed" && b.status !== "completed")
@@ -136,8 +138,6 @@ export class TaskSidebarView extends ItemView {
 					return -1;
 				return 0;
 			});
-
-		filteredTasks = this.sortDueDate(showDueDate, filteredTasks);
 
 		filteredTasks.forEach((task) => {
 			this.renderTaskLine(task);
