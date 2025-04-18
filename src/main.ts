@@ -514,11 +514,8 @@ export default class TaskSyncerPlugin extends Plugin {
 				console.log(`Task already exists: ${task}`);
 			}
 
-			console.log("Task Name: ", task);
-			console.log("Creating new task with duedate: ", dueDate);
 			await createTask(this.settings, accessToken, task, dueDate);
 			await this.refreshViewAndCache();
-			console.log("Synced Tasks:", task);
 		} catch (error) {
 			console.error("Error syncing tasks:", error);
 			throw error;
@@ -667,17 +664,10 @@ export default class TaskSyncerPlugin extends Plugin {
 		try {
 			const accessToken = await this.getAccessToken();
 			const tasks = await fetchTasks(this.settings, accessToken);
-			console.log("Fetched Tasks:", tasks);
-
-			// const currentData = (await this.loadData()) || {};
-			// currentData.tasks = Array.from(tasks.entries());
-			//
-			// this.taskCache = currentData;
-			// await this.saveData(currentData);
 
 			this.taskCache = { tasks: Array.from(tasks.entries()) };
-			console.log("Real taskCache: ", this.taskCache);
 
+			console.log("Refresh task cache", tasks);
 			return tasks;
 		} catch (error) {
 			console.error("Error fetching tasks:", error);

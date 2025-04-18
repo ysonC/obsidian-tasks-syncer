@@ -4,12 +4,14 @@
 - [ ] Beautify nav-header
 - [ ] Alway sort complete task at the bottom
 - [ ] Change icon when toggle
+- [ ] Change css injection to proper file
 
 ## Feature/edit-due-date
 
 - [x] Change due date to Today or Tomorrow
 - [x] Add function to add due date
 - [ ] Add function to update due date
+- [ ] Hightlight duedate if "Today"
 
 # Complete
 

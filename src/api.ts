@@ -27,7 +27,7 @@ export async function fetchTasks(
 	}
 
 	const data = response.json;
-	console.log("Date raw: ", data);
+
 	if (data.value && Array.isArray(data.value)) {
 		for (const task of data.value) {
 			const title = task.title.trim();
@@ -47,7 +47,7 @@ export async function fetchTasks(
  * @param settings Plugin settings containing the selected task list ID.
  * @param accessToken A valid access token.
  * @param taskTitle The title of the task to create.
- * @param status Optional initial status ("completed" or "notStarted"). Defaults to "notStarted".
+ * @param dueDate Due date for the task, not required
  */
 export async function createTask(
 	settings: MyTodoSettings,
