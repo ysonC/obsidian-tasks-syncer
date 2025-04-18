@@ -16,7 +16,10 @@ export async function fetchTasks(
 	const response = await requestUrl({
 		url: `https://graph.microsoft.com/v1.0/me/todo/lists/${settings.selectedTaskListId}/tasks`,
 		method: "GET",
-		headers: { Authorization: `Bearer ${accessToken}` },
+		headers: {
+			Authorization: `Bearer ${accessToken}`,
+			Prefer: `outlook.timezone="GMT Standard Time"`,
+		},
 	});
 
 	if (response.status !== 200) {
@@ -24,6 +27,7 @@ export async function fetchTasks(
 	}
 
 	const data = response.json;
+
 	if (data.value && Array.isArray(data.value)) {
 		for (const task of data.value) {
 			const title = task.title.trim();
@@ -43,14 +47,25 @@ export async function fetchTasks(
  * @param settings Plugin settings containing the selected task list ID.
  * @param accessToken A valid access token.
  * @param taskTitle The title of the task to create.
- * @param status Optional initial status ("completed" or "notStarted"). Defaults to "notStarted".
+ * @param dueDate Due date for the task, not required
  */
 export async function createTask(
 	settings: MyTodoSettings,
 	accessToken: string,
 	taskTitle: string,
-	status: string = "notStarted",
+	dueDate?: string,
 ): Promise<void> {
+	const body: Record<string, any> = {
+		title: taskTitle,
+	};
+
+	if (dueDate) {
+		body.dueDateTime = {
+			dateTime: dueDate,
+			timeZone: "GMT Standard Time",
+		};
+	}
+
 	const response = await requestUrl({
 		url: `https://graph.microsoft.com/v1.0/me/todo/lists/${settings.selectedTaskListId}/tasks`,
 		method: "POST",
@@ -58,10 +73,7 @@ export async function createTask(
 			Authorization: `Bearer ${accessToken}`,
 			"Content-Type": "application/json",
 		},
-		body: JSON.stringify({
-			title: taskTitle,
-			status: status,
-		}),
+		body: JSON.stringify(body),
 	});
 
 	if (response.status !== 201) {
@@ -74,15 +86,39 @@ export async function createTask(
  * @param settings Plugin settings containing the selected task list ID.
  * @param accessToken A valid access token.
  * @param taskId The ID of the task to update.
- * @param complete Whether to mark the task as complete.
+ * @param status?    If provided, mark the task complete (`true`) or not (`false`).
+ * @param title?     If provided, set the new title of the task.
+ * @param dueDate?   If provided, set the due date/time as an ISO string (e.g. "2025-05-01T00:00:00").
  */
 export async function updateTask(
 	settings: MyTodoSettings,
 	accessToken: string,
 	taskId: string,
-	complete: boolean,
+	title?: string,
+	status?: boolean,
+	dueDate?: string,
 ): Promise<void> {
-	const newStatus = complete ? "completed" : "notStarted";
+	const body: {
+		title?: string;
+		status?: "completed" | "notStarted";
+		dueDateTime?: { dateTime: string; timeZone: string };
+	} = {};
+
+	if (title !== undefined) {
+		body.title = title;
+	}
+
+	if (status !== undefined) {
+		body.status = status ? "completed" : "notStarted";
+	}
+
+	if (dueDate !== undefined) {
+		body.dueDateTime = {
+			dateTime: dueDate,
+			timeZone: "GMT Standard Time",
+		};
+	}
+
 	const response = await requestUrl({
 		url: `https://graph.microsoft.com/v1.0/me/todo/lists/${settings.selectedTaskListId}/tasks/${taskId}`,
 		method: "PATCH",
@@ -90,7 +126,7 @@ export async function updateTask(
 			Authorization: `Bearer ${accessToken}`,
 			"Content-Type": "application/json",
 		},
-		body: JSON.stringify({ status: newStatus }),
+		body: JSON.stringify(body),
 	});
 
 	if (response.status !== 200) {

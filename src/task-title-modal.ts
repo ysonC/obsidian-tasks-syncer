@@ -1,4 +1,5 @@
 import { Modal, App } from "obsidian";
+import { TaskInputResult } from "./types";
 
 /**
  * A simple modal that prompts the user to enter a task title.
@@ -6,16 +7,23 @@ import { Modal, App } from "obsidian";
  */
 export class TaskTitleModal extends Modal {
 	result: string;
-	onSubmit: (result: string) => void;
+	onSubmit: (result: TaskInputResult) => void;
+	private initial?: TaskInputResult;
 
 	/**
 	 * Constructs the modal.
 	 * @param app - The Obsidian app instance.
 	 * @param onSubmit - A callback that receives the entered task title.
+	 * @param initial - Optional initial values to pre-populate the inputs.
 	 */
-	constructor(app: App, onSubmit: (result: string) => void) {
+	constructor(
+		app: App,
+		onSubmit: (result: TaskInputResult) => void,
+		initial?: TaskInputResult,
+	) {
 		super(app);
 		this.onSubmit = onSubmit;
+		this.initial = initial;
 	}
 
 	/**
@@ -24,31 +32,39 @@ export class TaskTitleModal extends Modal {
 	onOpen() {
 		const { contentEl } = this;
 
-		// Apply centering styles to the modal content.
 		contentEl.style.display = "flex";
 		contentEl.style.flexDirection = "column";
 		contentEl.style.alignItems = "center";
 		contentEl.style.justifyContent = "center";
 
-		// Create and append the header.
-		// contentEl.createEl("h2", { text: "Enter Task Title" });
-		// Create and append the input element.
 		const inputEl = contentEl.createEl("input", {
 			type: "text",
 			placeholder: "Task Title",
+			value: this.initial?.title ?? "",
 		});
-		// Optionally set a width for the input.
+
 		inputEl.style.width = "100%";
 		inputEl.focus();
 
-		// When the user presses Enter, submit the input.
+		const dueInput = contentEl.createEl("input", {
+			type: "date",
+			placeholder: "Due Date (optional)",
+			value: this.initial?.dueDate
+				? this.initial.dueDate.slice(0, 10)
+				: "",
+		});
+		dueInput.style.width = "100%";
+
 		inputEl.onkeydown = (e) => {
 			if (e.key === "Enter") {
 				e.preventDefault();
 				e.stopPropagation();
-				this.result = inputEl.value;
+				const title = inputEl.value.trim();
+				const dueDate = dueInput.value
+					? `${dueInput.value}T00:00:00`
+					: undefined;
 				this.close();
-				this.onSubmit(this.result);
+				this.onSubmit({ title, dueDate });
 			}
 		};
 	}

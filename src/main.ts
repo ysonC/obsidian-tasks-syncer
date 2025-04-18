@@ -2,28 +2,20 @@ import { Plugin, TFile } from "obsidian";
 import * as fs from "fs";
 import * as dotenv from "dotenv";
 import * as path from "path";
-import {
-	MyTodoSettingTab,
-	DEFAULT_SETTINGS,
-	MyTodoSettings,
-} from "src/setting";
-import {
-	VIEW_TYPE_TODO_SIDEBAR,
-	TaskSidebarView,
-} from "src/right-sidebar-view";
+import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "./setting";
+import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "./right-sidebar-view";
 import {
 	fetchTasks,
 	createTask,
 	updateTask,
 	fetchTaskLists,
 	deleteTask,
-	updateTaskListName,
-} from "src/api";
-import { AuthManager } from "src/auth";
-import { TaskTitleModal } from "src/task-title-modal";
-import { GenericSelectModal } from "src/select-modal";
+} from "./api";
+import { AuthManager } from "./auth";
+import { TaskTitleModal } from "./task-title-modal";
+import { GenericSelectModal } from "./select-modal";
 import { notify } from "./utils";
-import { TaskCache, TaskItem, TaskList } from "./types";
+import { TaskCache, TaskInputResult, TaskItem, TaskList } from "./types";
 
 /**
  * Main plugin class for syncing tasks between Obsidian and Microsoft To‑Do.
@@ -44,7 +36,7 @@ export default class TaskSyncerPlugin extends Plugin {
 		const basePath = (this.app.vault.adapter as any).basePath;
 		const pluginPath = path.join(
 			basePath,
-			".obsidian/plugins/sync-obsidian-todo-plugin",
+			".obsidian/plugins/obsidian-tasks-syncer",
 		);
 		dotenv.config({ path: path.join(pluginPath, ".env"), override: true });
 
@@ -81,10 +73,6 @@ export default class TaskSyncerPlugin extends Plugin {
 			this.authManager.cca.getTokenCache().deserialize(cacheData);
 			console.log("Token cache loaded from file.");
 		}
-
-		// 7. Register styles
-		// this.registerStyles(pluginPath);
-		this.injectStyles();
 	}
 
 	/**
@@ -275,44 +263,13 @@ export default class TaskSyncerPlugin extends Plugin {
 			name: "Testing",
 			callback: async () => {
 				try {
-					console.log("Change name");
-					const newName = "Tasks";
-					updateTaskListName(
-						this.settings,
-						await this.getAccessToken(),
-						newName,
-					);
+					console.log("Testing update time zone");
 					notify("Testing...", "success");
 				} catch (error) {
 					console.error("Error testing:", error);
 				}
 			},
 		});
-	}
-
-	/**
-	 * Injects custom CSS styles into the document.
-	 */
-	injectStyles() {
-		const style = document.createElement("style");
-		style.textContent = `
-		.task-line {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-			padding: 2px 0;
-		}
-
-		.task-line input[type="checkbox"] {
-			margin: 0;
-			transform: scale(1.1);
-		}
-
-		.task-line span {
-			font-size: 14px;
-		}
-	`;
-		document.head.appendChild(style);
 	}
 
 	/**
@@ -505,7 +462,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	 * Pushes a single task to selected list in Microsoft To‑Do.
 	 * @param task - The task title text to push.
 	 */
-	async pushOneTask(task: string) {
+	async pushOneTask(task: string, dueDate?: string) {
 		if (!this.settings.selectedTaskListId) {
 			throw new Error(
 				"No task list selected. Please choose one in settings.",
@@ -521,9 +478,8 @@ export default class TaskSyncerPlugin extends Plugin {
 				console.log(`Task already exists: ${task}`);
 			}
 
-			await createTask(this.settings, accessToken, task);
+			await createTask(this.settings, accessToken, task, dueDate);
 			await this.refreshViewAndCache();
-			console.log("Synced Tasks:", task);
 		} catch (error) {
 			console.error("Error syncing tasks:", error);
 			throw error;
@@ -587,10 +543,10 @@ export default class TaskSyncerPlugin extends Plugin {
 	 * Open an interactive window to create task and push it.
 	 */
 	async openPushTaskModal() {
-		new TaskTitleModal(this.app, async (taskTitle: string) => {
+		new TaskTitleModal(this.app, async (result: TaskInputResult) => {
 			try {
 				notify("Pushing tasks to Microsoft To-Do...");
-				await this.pushOneTask(taskTitle);
+				await this.pushOneTask(result.title, result.dueDate);
 				notify(`Tasks pushed successfully!`, "success");
 			} catch (error) {
 				console.error("Error pushing tasks:", error);
@@ -672,17 +628,10 @@ export default class TaskSyncerPlugin extends Plugin {
 		try {
 			const accessToken = await this.getAccessToken();
 			const tasks = await fetchTasks(this.settings, accessToken);
-			console.log("Fetched Tasks:", tasks);
-
-			// const currentData = (await this.loadData()) || {};
-			// currentData.tasks = Array.from(tasks.entries());
-			//
-			// this.taskCache = currentData;
-			// await this.saveData(currentData);
 
 			this.taskCache = { tasks: Array.from(tasks.entries()) };
-			console.log("Real taskCache: ", this.taskCache);
 
+			console.log("Refresh task cache", tasks);
 			return tasks;
 		} catch (error) {
 			console.error("Error fetching tasks:", error);

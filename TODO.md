@@ -1,15 +1,19 @@
 # Todo
 
-- [ ] Beautify nav-header
-- [ ] Alway sort complete task at the bottom
-- [ ] Change icon when toggle
+- [ ] Add option in setting to set time zone
+- [x] Change icon when toggle
+- [>] Beautify nav-header
+- [x] Alway sort complete task at the bottom
+- [x] Change css injection to proper file
+
+# Complete
 
 ## Feature/edit-due-date
 
-- [ ] Change due date to Today or Tomorrow
-- [ ] Add function to update or add due date
-
-# Complete
+- [x] Change due date to Today or Tomorrow
+- [x] Add function to add due date
+- [x] Add function to update due date
+- [x] Hightlight duedate if "Today"
 
 ## Feature/show-due-date
 
@@ -18,7 +22,7 @@
 
 ## Feature/toggle-complete
 
-- [x] Add function to hide complete tasks in sidebar
+- [x] Add functron to hide complete tasks in sidebar
 - [x] Add icon above tasks for refresh and toggle complete
 
 - [x] Organize task object into types

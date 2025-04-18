@@ -2,7 +2,8 @@ import { ItemView, setIcon, WorkspaceLeaf } from "obsidian";
 import type TaskSyncerPlugin from "src/main";
 import { notify } from "./utils";
 import { updateTask } from "./api";
-import { TaskItem } from "./types";
+import { TaskItem, TaskInputResult } from "./types";
+import { TaskTitleModal } from "./task-title-modal";
 
 export const VIEW_TYPE_TODO_SIDEBAR = "tasks-syncer-sidebar";
 
@@ -45,16 +46,7 @@ export class TaskSidebarView extends ItemView {
 		this.setupNavHeader();
 		this.taskContainer = mainContainer.createDiv("tasks-group");
 
-		this.injectStyles();
-
-		this.render();
-		this.plugin
-			.refreshTaskCache()
-			.then(() => this.render())
-			.catch((error) => {
-				console.error("Error loading tasks in sidebar:", error);
-				notify("Error loading tasks in sidebar", error);
-			});
+		this.getNewTasksRender();
 	}
 
 	/**
@@ -71,40 +63,24 @@ export class TaskSidebarView extends ItemView {
 		setIcon(refreshBtn, "refresh-cw");
 		refreshBtn.title = "Refresh Tasks";
 		refreshBtn.onclick = async () => {
-			// Optional: show spinner immediately
-			this.render();
-			try {
-				await this.plugin.refreshTaskCache();
-				this.render();
-			} catch (error) {
-				console.log("Error refreshing tasks:", error);
-				notify("Failed to refresh tasks", "error");
-			}
+			this.getNewTasksRender();
 		};
 
-		// Toggle button for showing/hiding completed tasks.
-		const toggleComplete = navButtons.createEl("a", {
-			cls: "nav-action-button",
-		});
-		setIcon(toggleComplete, "eye");
-		toggleComplete.title = "Toggle Completed Tasks";
-		toggleComplete.onclick = async () => {
-			await this.flipTogCompleteSetting();
-			this.render();
-		};
-
-		// Toggle button for showing/hiding completed tasks.
-		const toggleDueDate = navButtons.createEl("a", {
-			cls: "nav-action-button",
-		});
-		setIcon(toggleDueDate, "calendar-arrow-up");
-		toggleDueDate.title = "Toggle Due Date";
-		toggleDueDate.onclick = async () => {
-			this.plugin.settings.showDueDate =
-				!this.plugin.settings.showDueDate;
-			await this.plugin.saveSettings();
-			this.render();
-		};
+		this.createToggleButton(
+			navButtons,
+			() => this.plugin.settings.showComplete,
+			() => this.flipSetting("showComplete"),
+			{ on: "eye-off", off: "eye" },
+			"Toggle Completed Tasks",
+		);
+		// Due‑date toggle
+		this.createToggleButton(
+			navButtons,
+			() => this.plugin.settings.showDueDate,
+			() => this.flipSetting("showDueDate"),
+			{ on: "calendar", off: "calendar-arrow-up" },
+			"Toggle Due Dates",
+		);
 	}
 
 	/**
@@ -121,15 +97,17 @@ export class TaskSidebarView extends ItemView {
 			text: this.plugin.settings.selectedTaskListTitle,
 		});
 
-		const tasksArray = this.plugin.taskCache?.tasks as [string, TaskItem][];
-		const tasks = new Map<string, TaskItem>(tasksArray);
-
-		if (tasks.size === 0) {
+		const tasksArray =
+			this.plugin.taskCache?.tasks ?? ([] as [string, TaskItem][]);
+		if (tasksArray.length === 0) {
 			container.createEl("p", { text: "No tasks found" });
 			return;
 		}
 
-		let filteredTasks = Array.from(tasks.values())
+		const tasks = tasksArray.map(([_, task]) => task);
+
+		let filteredTasks = this.sortDueDate(showDueDate, tasks);
+		filteredTasks = tasks
 			.filter((task) => showCompleted || task.status !== "completed")
 			.sort((a, b) => {
 				if (a.status === "completed" && b.status !== "completed")
@@ -139,11 +117,29 @@ export class TaskSidebarView extends ItemView {
 				return 0;
 			});
 
-		filteredTasks = this.sortDueDate(showDueDate, filteredTasks);
-
 		filteredTasks.forEach((task) => {
 			this.renderTaskLine(task);
 		});
+	}
+
+	/**
+	 * Refresh task and show animation.
+	 */
+	private async getNewTasksRender() {
+		const container = this.taskContainer;
+		container.empty();
+		const wrapper = container.createDiv({ cls: "spinner-wrapper" });
+		wrapper.createDiv({ cls: "loading-spinner" });
+		wrapper.createEl("div", { text: "Loading tasks…" });
+		try {
+			await this.plugin.refreshTaskCache();
+		} catch (error) {
+			console.error("Error refreshing tasks: ", error);
+			notify("Failed to refresh tasks", "error");
+		} finally {
+			wrapper.remove();
+			this.render();
+		}
 	}
 
 	/**
@@ -166,14 +162,46 @@ export class TaskSidebarView extends ItemView {
 		const dueDate = task.dueDateTime?.dateTime
 			? task.dueDateTime.dateTime.split("T")[0]
 			: "";
-		detailsContainer.createEl("div", {
-			cls: "task-due-date",
-			text: dueDate,
-		});
 
+		detailsContainer.createEl("div", this.formatDueDate(dueDate));
+
+		detailsContainer.addEventListener("dblclick", async () => {
+			await this.handleTaskEdit(task, dueDate);
+		});
 		checkbox.addEventListener("change", async (event) => {
 			await this.handleTaskStatusChange(event, task, checkbox);
 		});
+	}
+
+	/**
+	 * Show pop up to edit task using api function
+	 */
+	async handleTaskEdit(task: TaskItem, dueDate: string) {
+		new TaskTitleModal(
+			this.app,
+			async (result: TaskInputResult) => {
+				try {
+					const accessToken = await this.plugin.getAccessToken();
+					await updateTask(
+						this.plugin.settings,
+						accessToken,
+						task.id,
+						result.title,
+						false,
+						result.dueDate,
+					);
+					this.getNewTasksRender();
+					console.log("Edit task complete");
+				} catch (error) {
+					console.error("Error pushing tasks:", error);
+					notify(
+						"Error pushing tasks. Check the console for details.",
+						"error",
+					);
+				}
+			},
+			{ title: task.title, dueDate: dueDate },
+		).open();
 	}
 
 	/**
@@ -194,6 +222,7 @@ export class TaskSidebarView extends ItemView {
 				this.plugin.settings,
 				accessToken,
 				task.id,
+				undefined,
 				newCompletedState,
 			);
 
@@ -212,15 +241,17 @@ export class TaskSidebarView extends ItemView {
 	/**
 	 * Toggle the setting for showing completed tasks.
 	 */
-	async flipTogCompleteSetting() {
-		this.plugin.settings.showComplete = !this.plugin.settings.showComplete;
+	async flipSetting<K extends keyof TaskSyncerPlugin["settings"]>(key: K) {
+		// @ts-expect-error
+		this.plugin.settings[key] = !this.plugin.settings[key];
 		await this.plugin.saveSettings();
-		console.log(
-			"Show complete saved as",
-			this.plugin.settings.showComplete,
-		);
 	}
 
+	/**
+	 * Sort due date base on the closest to today
+	 * @param show A boolean to show (true) or not (false)
+	 * @param tasks The entire task items
+	 */
 	sortDueDate(show: boolean, tasks: TaskItem[]): TaskItem[] {
 		if (!show) return tasks;
 		tasks.sort((a, b) => {
@@ -243,56 +274,52 @@ export class TaskSidebarView extends ItemView {
 		return tasks;
 	}
 
-	async onClose() { }
+	/**
+	 * Format due date into cls format for today, tomorrow, and other.
+	 * @param date The date to convert.
+	 */
+	private formatDueDate(date: string): { text: string; cls: string } {
+		const iso = new Date().toISOString().slice(0, 10);
+		const tomorrow = new Date();
+		tomorrow.setDate(tomorrow.getDate() + 1);
+		const tomIso = tomorrow.toISOString().slice(0, 10);
+
+		if (date === iso) {
+			return { text: "Today", cls: "task-due-date-now" };
+		} else if (date === tomIso) {
+			return { text: "Tomorrow", cls: "task-due-date-tomorrow" };
+		} else {
+			return { text: date, cls: "task-due-date" };
+		}
+	}
 
 	/**
-	 * Inject custom CSS styles into the document.
+	 * Create toggle button
 	 */
-	injectStyles() {
-		const style = document.createElement("style");
-		style.textContent = `
-			.spinner-wrapper {
-				display: flex;
-				flex-direction: column;
-				align-items: center;
-				justify-content: center;
-				padding: 1em;
-			}
-			.loading-spinner {
-				width: 24px;
-				height: 24px;
-				border: 3px solid var(--background-modifier-border);
-				border-top: 3px solid var(--text-accent);
-				border-radius: 50%;
-				animation: spin 1s linear infinite;
-				margin-bottom: 0.5em;
-			}
-			@keyframes spin {
-				0% { transform: rotate(0deg); }
-				100% { transform: rotate(360deg); }
-			}
-			.task-list-spacer {
-				height: 1em;
-			}
-			.nav-action-button {
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-				width: 24px;
-				height: 24px;
-				color: white;
-				background: transparent;
-				border-radius: 4px;
-				transition: background-color 0.2s ease-in-out;
-			}
-			.nav-action-button:hover {
-				background-color: var(--background-modifier-hover, #444);
-			}
-			.task-due-date{
-				font-size: 0.8em;
-				color: #777;
-			}
-		`;
-		document.head.appendChild(style);
+	private createToggleButton(
+		parent: HTMLElement,
+		getState: () => boolean,
+		flipState: () => Promise<void>,
+		icons: { on: string; off: string },
+		title: string,
+	): HTMLAnchorElement {
+		const btn = parent.createEl("a", { cls: "nav-action-button" });
+		btn.title = title;
+
+		const updateIcon = () => {
+			setIcon(btn, getState() ? icons.off : icons.on);
+		};
+
+		updateIcon();
+
+		btn.onclick = async () => {
+			await flipState();
+			updateIcon();
+			this.render();
+		};
+
+		return btn;
 	}
+
+	async onClose() { }
 }
