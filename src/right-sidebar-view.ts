@@ -162,10 +162,7 @@ export class TaskSidebarView extends ItemView {
 			? task.dueDateTime.dateTime.split("T")[0]
 			: "";
 
-		detailsContainer.createEl("div", {
-			cls: "task-due-date",
-			text: this.convertDate(dueDate),
-		});
+		detailsContainer.createEl("div", this.formatDueDate(dueDate));
 
 		checkbox.addEventListener("change", async (event) => {
 			await this.handleTaskStatusChange(event, task, checkbox);
@@ -242,19 +239,22 @@ export class TaskSidebarView extends ItemView {
 	}
 
 	/**
-	 * Convert date for today and tomorrow and return it.
+	 * Format due date into cls format for today, tomorrow, and other.
 	 * @param date The date to convert.
 	 */
-	convertDate(date: string): string {
-		const today = new Date();
-		const tomorrow = new Date(today);
-		tomorrow.setDate(new Date().getDate() + 1);
+	private formatDueDate(date: string): { text: string; cls: string } {
+		const iso = new Date().toISOString().slice(0, 10);
+		const tomorrow = new Date();
+		tomorrow.setDate(tomorrow.getDate() + 1);
+		const tomIso = tomorrow.toISOString().slice(0, 10);
 
-		if (date === today.toISOString().split("T")[0]) return "Today";
-		else if (date === tomorrow.toISOString().split("T")[0])
-			return "Tomorrow";
-
-		return date;
+		if (date === iso) {
+			return { text: "Today", cls: "task-due-date-now" };
+		} else if (date === tomIso) {
+			return { text: "Tomorrow", cls: "task-due-date-tomorrow" };
+		} else {
+			return { text: date, cls: "task-due-date" };
+		}
 	}
 
 	/**

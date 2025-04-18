@@ -38,6 +38,16 @@
 	color: #777;
 }
 
+.task-due-date-now {
+	font-size: 0.8em;
+	color: #f05e48;
+}
+
+.task-due-date-tomorrow {
+	font-size: 0.8em;
+	color: #f0aa48;
+}
+
 .spinner-wrapper {
 	display: flex;
 	flex-direction: column;
