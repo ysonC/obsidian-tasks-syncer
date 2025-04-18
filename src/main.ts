@@ -2,25 +2,18 @@ import { Plugin, TFile } from "obsidian";
 import * as fs from "fs";
 import * as dotenv from "dotenv";
 import * as path from "path";
-import {
-	MyTodoSettingTab,
-	DEFAULT_SETTINGS,
-	MyTodoSettings,
-} from "src/setting";
-import {
-	VIEW_TYPE_TODO_SIDEBAR,
-	TaskSidebarView,
-} from "src/right-sidebar-view";
+import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "./setting";
+import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "./right-sidebar-view";
 import {
 	fetchTasks,
 	createTask,
 	updateTask,
 	fetchTaskLists,
 	deleteTask,
-} from "src/api";
-import { AuthManager } from "src/auth";
-import { TaskTitleModal } from "src/task-title-modal";
-import { GenericSelectModal } from "src/select-modal";
+} from "./api";
+import { AuthManager } from "./auth";
+import { TaskTitleModal } from "./task-title-modal";
+import { GenericSelectModal } from "./select-modal";
 import { notify } from "./utils";
 import { TaskCache, TaskInputResult, TaskItem, TaskList } from "./types";
 
@@ -43,7 +36,7 @@ export default class TaskSyncerPlugin extends Plugin {
 		const basePath = (this.app.vault.adapter as any).basePath;
 		const pluginPath = path.join(
 			basePath,
-			".obsidian/plugins/sync-obsidian-todo-plugin",
+			".obsidian/plugins/obsidian-tasks-syncer",
 		);
 		dotenv.config({ path: path.join(pluginPath, ".env"), override: true });
 
@@ -80,10 +73,6 @@ export default class TaskSyncerPlugin extends Plugin {
 			this.authManager.cca.getTokenCache().deserialize(cacheData);
 			console.log("Token cache loaded from file.");
 		}
-
-		// 7. Register styles
-		// this.registerStyles(pluginPath);
-		this.injectStyles();
 	}
 
 	/**
@@ -281,31 +270,6 @@ export default class TaskSyncerPlugin extends Plugin {
 				}
 			},
 		});
-	}
-
-	/**
-	 * Injects custom CSS styles into the document.
-	 */
-	injectStyles() {
-		const style = document.createElement("style");
-		style.textContent = `
-		.task-line {
-			display: flex;
-			align-items: center;
-			gap: 8px;
-			padding: 2px 0;
-		}
-
-		.task-line input[type="checkbox"] {
-			margin: 0;
-			transform: scale(1.1);
-		}
-
-		.task-line span {
-			font-size: 14px;
-		}
-	`;
-		document.head.appendChild(style);
 	}
 
 	/**

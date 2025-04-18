@@ -1,0 +1,39 @@
+.task-line {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 2px 0;
+}
+
+.task-line input[type="checkbox"] {
+	margin: 0;
+	transform: scale(1.1);
+}
+
+.task-line span {
+	font-size: 14px;
+}
+
+.task-list-spacer {
+	height: 1em;
+}
+
+.nav-action-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	color: white;
+	background: transparent;
+	border-radius: 4px;
+	transition: background-color 0.2s ease-in-out;
+}
+.nav-action-button:hover {
+	background-color: var(--background-modifier-hover, #444);
+}
+
+.task-due-date {
+	font-size: 0.8em;
+	color: #777;
+}

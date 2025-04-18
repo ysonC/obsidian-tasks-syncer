@@ -45,8 +45,6 @@ export class TaskSidebarView extends ItemView {
 		this.setupNavHeader();
 		this.taskContainer = mainContainer.createDiv("tasks-group");
 
-		this.injectStyles();
-
 		this.render();
 		this.plugin
 			.refreshTaskCache()
@@ -216,12 +214,13 @@ export class TaskSidebarView extends ItemView {
 	async flipTogCompleteSetting() {
 		this.plugin.settings.showComplete = !this.plugin.settings.showComplete;
 		await this.plugin.saveSettings();
-		console.log(
-			"Show complete saved as",
-			this.plugin.settings.showComplete,
-		);
 	}
 
+	/**
+	 * Sort due date base on the closest to today
+	 * @param show A boolean to show (true) or not (false)
+	 * @param tasks The entire task items
+	 */
 	sortDueDate(show: boolean, tasks: TaskItem[]): TaskItem[] {
 		if (!show) return tasks;
 		tasks.sort((a, b) => {
@@ -244,6 +243,10 @@ export class TaskSidebarView extends ItemView {
 		return tasks;
 	}
 
+	/**
+	 * Convert date for today and tomorrow and return it.
+	 * @param date The date to convert.
+	 */
 	convertDate(date: string): string {
 		const today = new Date();
 		const tomorrow = new Date(today);
@@ -257,55 +260,4 @@ export class TaskSidebarView extends ItemView {
 	}
 
 	async onClose() { }
-
-	/**
-	 * Inject custom CSS styles into the document.
-	 */
-	injectStyles() {
-		const style = document.createElement("style");
-		style.textContent = `
-			.spinner-wrapper {
-				display: flex;
-				flex-direction: column;
-				align-items: center;
-				justify-content: center;
-				padding: 1em;
-			}
-			.loading-spinner {
-				width: 24px;
-				height: 24px;
-				border: 3px solid var(--background-modifier-border);
-				border-top: 3px solid var(--text-accent);
-				border-radius: 50%;
-				animation: spin 1s linear infinite;
-				margin-bottom: 0.5em;
-			}
-			@keyframes spin {
-				0% { transform: rotate(0deg); }
-				100% { transform: rotate(360deg); }
-			}
-			.task-list-spacer {
-				height: 1em;
-			}
-			.nav-action-button {
-				display: inline-flex;
-				align-items: center;
-				justify-content: center;
-				width: 24px;
-				height: 24px;
-				color: white;
-				background: transparent;
-				border-radius: 4px;
-				transition: background-color 0.2s ease-in-out;
-			}
-			.nav-action-button:hover {
-				background-color: var(--background-modifier-hover, #444);
-			}
-			.task-due-date{
-				font-size: 0.8em;
-				color: #777;
-			}
-		`;
-		document.head.appendChild(style);
-	}
 }

@@ -4,7 +4,7 @@
 - [ ] Beautify nav-header
 - [ ] Alway sort complete task at the bottom
 - [ ] Change icon when toggle
-- [ ] Change css injection to proper file
+- [x] Change css injection to proper file
 
 ## Feature/edit-due-date
 
