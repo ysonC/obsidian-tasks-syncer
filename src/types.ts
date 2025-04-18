@@ -27,3 +27,8 @@ interface DateTimeInfo {
 	dateTime: string;
 	timeZone: string;
 }
+
+export interface TaskInputResult {
+	title: string;
+	dueDate?: string;
+}

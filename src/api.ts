@@ -53,8 +53,19 @@ export async function createTask(
 	settings: MyTodoSettings,
 	accessToken: string,
 	taskTitle: string,
-	status: string = "notStarted",
+	dueDate?: string,
 ): Promise<void> {
+	const body: Record<string, any> = {
+		title: taskTitle,
+	};
+
+	if (dueDate) {
+		body.dueDateTime = {
+			dateTime: dueDate,
+			timeZone: "GMT Standard Time",
+		};
+	}
+
 	const response = await requestUrl({
 		url: `https://graph.microsoft.com/v1.0/me/todo/lists/${settings.selectedTaskListId}/tasks`,
 		method: "POST",
@@ -62,10 +73,7 @@ export async function createTask(
 			Authorization: `Bearer ${accessToken}`,
 			"Content-Type": "application/json",
 		},
-		body: JSON.stringify({
-			title: taskTitle,
-			status: status,
-		}),
+		body: JSON.stringify(body),
 	});
 
 	if (response.status !== 201) {

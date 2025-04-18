@@ -17,13 +17,12 @@ import {
 	updateTask,
 	fetchTaskLists,
 	deleteTask,
-	updateTaskListName,
 } from "src/api";
 import { AuthManager } from "src/auth";
 import { TaskTitleModal } from "src/task-title-modal";
 import { GenericSelectModal } from "src/select-modal";
 import { notify } from "./utils";
-import { TaskCache, TaskItem, TaskList } from "./types";
+import { TaskCache, TaskInputResult, TaskItem, TaskList } from "./types";
 
 /**
  * Main plugin class for syncing tasks between Obsidian and Microsoft To‑Do.
@@ -499,7 +498,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	 * Pushes a single task to selected list in Microsoft To‑Do.
 	 * @param task - The task title text to push.
 	 */
-	async pushOneTask(task: string) {
+	async pushOneTask(task: string, dueDate?: string) {
 		if (!this.settings.selectedTaskListId) {
 			throw new Error(
 				"No task list selected. Please choose one in settings.",
@@ -515,7 +514,9 @@ export default class TaskSyncerPlugin extends Plugin {
 				console.log(`Task already exists: ${task}`);
 			}
 
-			await createTask(this.settings, accessToken, task);
+			console.log("Task Name: ", task);
+			console.log("Creating new task with duedate: ", dueDate);
+			await createTask(this.settings, accessToken, task, dueDate);
 			await this.refreshViewAndCache();
 			console.log("Synced Tasks:", task);
 		} catch (error) {
@@ -581,10 +582,10 @@ export default class TaskSyncerPlugin extends Plugin {
 	 * Open an interactive window to create task and push it.
 	 */
 	async openPushTaskModal() {
-		new TaskTitleModal(this.app, async (taskTitle: string) => {
+		new TaskTitleModal(this.app, async (result: TaskInputResult) => {
 			try {
 				notify("Pushing tasks to Microsoft To-Do...");
-				await this.pushOneTask(taskTitle);
+				await this.pushOneTask(result.title, result.dueDate);
 				notify(`Tasks pushed successfully!`, "success");
 			} catch (error) {
 				console.error("Error pushing tasks:", error);
