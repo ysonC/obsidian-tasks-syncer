@@ -45,14 +45,7 @@ export class TaskSidebarView extends ItemView {
 		this.setupNavHeader();
 		this.taskContainer = mainContainer.createDiv("tasks-group");
 
-		this.render();
-		this.plugin
-			.refreshTaskCache()
-			.then(() => this.render())
-			.catch((error) => {
-				console.error("Error loading tasks in sidebar:", error);
-				notify("Error loading tasks in sidebar", error);
-			});
+		this.getNewTasks();
 	}
 
 	/**
@@ -69,15 +62,7 @@ export class TaskSidebarView extends ItemView {
 		setIcon(refreshBtn, "refresh-cw");
 		refreshBtn.title = "Refresh Tasks";
 		refreshBtn.onclick = async () => {
-			// Optional: show spinner immediately
-			this.render();
-			try {
-				await this.plugin.refreshTaskCache();
-				this.render();
-			} catch (error) {
-				console.log("Error refreshing tasks:", error);
-				notify("Failed to refresh tasks", "error");
-			}
+			this.getNewTasks();
 		};
 
 		// Toggle button for showing/hiding completed tasks.
@@ -142,6 +127,26 @@ export class TaskSidebarView extends ItemView {
 		filteredTasks.forEach((task) => {
 			this.renderTaskLine(task);
 		});
+	}
+
+	/**
+	 * Refresh task and show animation.
+	 */
+	private async getNewTasks() {
+		const container = this.taskContainer;
+		container.empty();
+		const wrapper = container.createDiv({ cls: "spinner-wrapper" });
+		wrapper.createDiv({ cls: "loading-spinner" });
+		wrapper.createEl("div", { text: "Loading tasks…" });
+		try {
+			await this.plugin.refreshTaskCache();
+		} catch (error) {
+			console.error("Error refreshing tasks: ", error);
+			notify("Failed to refresh tasks", "error");
+		} finally {
+			wrapper.remove();
+			this.render();
+		}
 	}
 
 	/**
