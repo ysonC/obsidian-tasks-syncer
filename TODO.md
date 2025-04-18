@@ -6,14 +6,14 @@
 - [x] Alway sort complete task at the bottom
 - [x] Change css injection to proper file
 
+# Complete
+
 ## Feature/edit-due-date
 
 - [x] Change due date to Today or Tomorrow
 - [x] Add function to add due date
-- [ ] Add function to update due date
-- [ ] Hightlight duedate if "Today"
-
-# Complete
+- [x] Add function to update due date
+- [x] Hightlight duedate if "Today"
 
 ## Feature/show-due-date
 

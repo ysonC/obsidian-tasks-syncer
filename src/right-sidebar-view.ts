@@ -2,7 +2,8 @@ import { ItemView, setIcon, WorkspaceLeaf } from "obsidian";
 import type TaskSyncerPlugin from "src/main";
 import { notify } from "./utils";
 import { updateTask } from "./api";
-import { TaskItem } from "./types";
+import { TaskItem, TaskInputResult } from "./types";
+import { TaskTitleModal } from "./task-title-modal";
 
 export const VIEW_TYPE_TODO_SIDEBAR = "tasks-syncer-sidebar";
 
@@ -45,7 +46,7 @@ export class TaskSidebarView extends ItemView {
 		this.setupNavHeader();
 		this.taskContainer = mainContainer.createDiv("tasks-group");
 
-		this.getNewTasks();
+		this.getNewTasksRender();
 	}
 
 	/**
@@ -62,7 +63,7 @@ export class TaskSidebarView extends ItemView {
 		setIcon(refreshBtn, "refresh-cw");
 		refreshBtn.title = "Refresh Tasks";
 		refreshBtn.onclick = async () => {
-			this.getNewTasks();
+			this.getNewTasksRender();
 		};
 
 		this.createToggleButton(
@@ -124,7 +125,7 @@ export class TaskSidebarView extends ItemView {
 	/**
 	 * Refresh task and show animation.
 	 */
-	private async getNewTasks() {
+	private async getNewTasksRender() {
 		const container = this.taskContainer;
 		container.empty();
 		const wrapper = container.createDiv({ cls: "spinner-wrapper" });
@@ -164,9 +165,43 @@ export class TaskSidebarView extends ItemView {
 
 		detailsContainer.createEl("div", this.formatDueDate(dueDate));
 
+		detailsContainer.addEventListener("dblclick", async () => {
+			await this.handleTaskEdit(task, dueDate);
+		});
 		checkbox.addEventListener("change", async (event) => {
 			await this.handleTaskStatusChange(event, task, checkbox);
 		});
+	}
+
+	/**
+	 * Show pop up to edit task using api function
+	 */
+	async handleTaskEdit(task: TaskItem, dueDate: string) {
+		new TaskTitleModal(
+			this.app,
+			async (result: TaskInputResult) => {
+				try {
+					const accessToken = await this.plugin.getAccessToken();
+					await updateTask(
+						this.plugin.settings,
+						accessToken,
+						task.id,
+						result.title,
+						false,
+						result.dueDate,
+					);
+					this.getNewTasksRender();
+					console.log("Edit task complete");
+				} catch (error) {
+					console.error("Error pushing tasks:", error);
+					notify(
+						"Error pushing tasks. Check the console for details.",
+						"error",
+					);
+				}
+			},
+			{ title: task.title, dueDate: dueDate },
+		).open();
 	}
 
 	/**
@@ -187,6 +222,7 @@ export class TaskSidebarView extends ItemView {
 				this.plugin.settings,
 				accessToken,
 				task.id,
+				undefined,
 				newCompletedState,
 			);
 

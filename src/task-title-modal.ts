@@ -8,15 +8,22 @@ import { TaskInputResult } from "./types";
 export class TaskTitleModal extends Modal {
 	result: string;
 	onSubmit: (result: TaskInputResult) => void;
+	private initial?: TaskInputResult;
 
 	/**
 	 * Constructs the modal.
 	 * @param app - The Obsidian app instance.
 	 * @param onSubmit - A callback that receives the entered task title.
+	 * @param initial - Optional initial values to pre-populate the inputs.
 	 */
-	constructor(app: App, onSubmit: (result: TaskInputResult) => void) {
+	constructor(
+		app: App,
+		onSubmit: (result: TaskInputResult) => void,
+		initial?: TaskInputResult,
+	) {
 		super(app);
 		this.onSubmit = onSubmit;
+		this.initial = initial;
 	}
 
 	/**
@@ -33,6 +40,7 @@ export class TaskTitleModal extends Modal {
 		const inputEl = contentEl.createEl("input", {
 			type: "text",
 			placeholder: "Task Title",
+			value: this.initial?.title ?? "",
 		});
 
 		inputEl.style.width = "100%";
@@ -41,10 +49,12 @@ export class TaskTitleModal extends Modal {
 		const dueInput = contentEl.createEl("input", {
 			type: "date",
 			placeholder: "Due Date (optional)",
+			value: this.initial?.dueDate
+				? this.initial.dueDate.slice(0, 10)
+				: "",
 		});
 		dueInput.style.width = "100%";
 
-		console.log("Due date input : ", dueInput);
 		inputEl.onkeydown = (e) => {
 			if (e.key === "Enter") {
 				e.preventDefault();
