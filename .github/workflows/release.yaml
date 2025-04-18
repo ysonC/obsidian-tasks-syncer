@@ -1,10 +1,13 @@
 name: Release Obsidian Plugin
 
 on:
+    push:
+        paths:
+            - "manifest.json"
     pull_request:
         types: [closed]
-        branches:
-            - main
+        paths:
+            - "manifest.json"
 
 jobs:
     release:
