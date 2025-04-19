@@ -1,6 +1,6 @@
 import { ItemView, setIcon, WorkspaceLeaf } from "obsidian";
 import type TaskSyncerPlugin from "src/main";
-import { notify } from "./utils";
+import { notify, playConfetti } from "./utils";
 import { updateTask } from "./api";
 import { TaskItem, TaskInputResult } from "./types";
 import { TaskTitleModal } from "./task-title-modal";
@@ -120,6 +120,10 @@ export class TaskSidebarView extends ItemView {
 		filteredTasks.forEach((task) => {
 			this.renderTaskLine(task);
 		});
+		container.createEl("div", {
+			text: "Hello",
+			cls: "gif-box",
+		});
 	}
 
 	/**
@@ -230,7 +234,13 @@ export class TaskSidebarView extends ItemView {
 			);
 
 			task.status = newCompletedState ? "completed" : "notstarted";
-			await this.plugin.refreshTaskCache();
+			const refreshedTasks = await this.plugin.refreshTaskCache();
+			if (
+				Array.from(refreshedTasks.values()).every(
+					(task) => task.status === "completed",
+				)
+			)
+				playConfetti();
 			this.render();
 		} catch (error) {
 			console.error("Error updating task with checkbox:", error);
