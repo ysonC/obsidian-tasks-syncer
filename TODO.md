@@ -1,12 +1,17 @@
 # Todo
 
 - [ ] Add option in setting to set time zone
-- [x] Change icon when toggle
+
+## Feature/beatify-sidebar
+
 - [>] Beautify nav-header
-- [x] Alway sort complete task at the bottom
-- [x] Change css injection to proper file
+- [x] Add special animation when complete all task
 
 # Complete
+
+- [x] Change icon when toggle
+- [x] Alway sort complete task at the bottom
+- [x] Change css injection to proper file
 
 ## Feature/edit-due-date
 

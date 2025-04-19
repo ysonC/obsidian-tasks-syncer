@@ -1,10 +1,9 @@
 import { ItemView, setIcon, WorkspaceLeaf } from "obsidian";
 import type TaskSyncerPlugin from "src/main";
-import { notify } from "./utils";
+import { notify, playConfetti } from "./utils";
 import { updateTask } from "./api";
 import { TaskItem, TaskInputResult } from "./types";
 import { TaskTitleModal } from "./task-title-modal";
-import { stat } from "fs";
 
 export const VIEW_TYPE_TODO_SIDEBAR = "tasks-syncer-sidebar";
 
@@ -231,7 +230,14 @@ export class TaskSidebarView extends ItemView {
 			);
 
 			task.status = newCompletedState ? "completed" : "notstarted";
-			await this.plugin.refreshTaskCache();
+			const refreshedTasks = await this.plugin.refreshTaskCache();
+			if (
+				Array.from(refreshedTasks.values()).every(
+					(task) => task.status === "completed",
+				)
+			)
+				if (this.plugin.settings.enableConfetti)
+					playConfetti(this.plugin.settings.confettiType);
 			this.render();
 		} catch (error) {
 			console.error("Error updating task with checkbox:", error);
@@ -290,13 +296,14 @@ export class TaskSidebarView extends ItemView {
 		const tomorrow = new Date();
 		tomorrow.setDate(tomorrow.getDate() + 1);
 		const tomIso = tomorrow.toISOString().slice(0, 10);
+		if (status === "completed") return { text: date, cls: "task-due-date" };
 
 		if (date === iso) {
 			return { text: "Today", cls: "task-due-date-now" };
 		} else if (date === tomIso) {
 			return { text: "Tomorrow", cls: "task-due-date-tomorrow" };
-		} else if (date < iso && status === "notStarted") {
-			return { text: date, cls: "task-due-date-past" };
+		} else if (date < iso) {
+			return { text: "Past Due", cls: "task-due-date-past" };
 		} else return { text: date, cls: "task-due-date" };
 	}
 
