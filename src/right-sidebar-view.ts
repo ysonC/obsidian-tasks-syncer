@@ -4,6 +4,7 @@ import { notify } from "./utils";
 import { updateTask } from "./api";
 import { TaskItem, TaskInputResult } from "./types";
 import { TaskTitleModal } from "./task-title-modal";
+import { stat } from "fs";
 
 export const VIEW_TYPE_TODO_SIDEBAR = "tasks-syncer-sidebar";
 
@@ -163,7 +164,10 @@ export class TaskSidebarView extends ItemView {
 			? task.dueDateTime.dateTime.split("T")[0]
 			: "";
 
-		detailsContainer.createEl("div", this.formatDueDate(dueDate));
+		detailsContainer.createEl(
+			"div",
+			this.formatDueDate(dueDate, task.status),
+		);
 
 		detailsContainer.addEventListener("dblclick", async () => {
 			await this.handleTaskEdit(task, dueDate);
@@ -278,7 +282,10 @@ export class TaskSidebarView extends ItemView {
 	 * Format due date into cls format for today, tomorrow, and other.
 	 * @param date The date to convert.
 	 */
-	private formatDueDate(date: string): { text: string; cls: string } {
+	private formatDueDate(
+		date: string,
+		status: string,
+	): { text: string; cls: string } {
 		const iso = new Date().toISOString().slice(0, 10);
 		const tomorrow = new Date();
 		tomorrow.setDate(tomorrow.getDate() + 1);
@@ -288,9 +295,9 @@ export class TaskSidebarView extends ItemView {
 			return { text: "Today", cls: "task-due-date-now" };
 		} else if (date === tomIso) {
 			return { text: "Tomorrow", cls: "task-due-date-tomorrow" };
-		} else {
-			return { text: date, cls: "task-due-date" };
-		}
+		} else if (date < iso && status === "notStarted") {
+			return { text: date, cls: "task-due-date-past" };
+		} else return { text: date, cls: "task-due-date" };
 	}
 
 	/**
@@ -321,5 +328,5 @@ export class TaskSidebarView extends ItemView {
 		return btn;
 	}
 
-	async onClose() { }
+	async onClose() {}
 }

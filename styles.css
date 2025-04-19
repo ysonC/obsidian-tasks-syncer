@@ -40,12 +40,17 @@
 
 .task-due-date-now {
 	font-size: 0.8em;
-	color: #f05e48;
+	color: #ff9900;
 }
 
 .task-due-date-tomorrow {
 	font-size: 0.8em;
-	color: #f0aa48;
+	color: #999966;
+}
+
+.task-due-date-past {
+	font-size: 0.8em;
+	color: #f05e48;
 }
 
 .spinner-wrapper {
