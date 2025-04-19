@@ -1,6 +1,6 @@
 {
 	"name": "task-syncer-plugin",
-	"version": "1.4.2",
+	"version": "1.4.3",
 	"description": "Sync Microsoft To‑Do tasks inside Obsidian.",
 	"main": "main.js",
 	"scripts": {
