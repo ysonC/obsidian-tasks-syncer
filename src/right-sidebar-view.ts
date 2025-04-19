@@ -236,7 +236,8 @@ export class TaskSidebarView extends ItemView {
 					(task) => task.status === "completed",
 				)
 			)
-				playConfetti(this.plugin.settings.enableConfetti);
+				if (this.plugin.settings.enableConfetti)
+					playConfetti(this.plugin.settings.confettiType);
 			this.render();
 		} catch (error) {
 			console.error("Error updating task with checkbox:", error);

@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 import TaskSyncerPlugin from "src/main";
+import { playConfetti } from "./utils";
 
 export interface MyTodoSettings {
 	selectedTaskListId: string;
@@ -15,6 +16,7 @@ export interface MyTodoSettings {
 	redirectUrl: string;
 
 	enableConfetti: boolean;
+	confettiType: "regular" | "big" | "superbig";
 }
 
 export const DEFAULT_SETTINGS: MyTodoSettings = {
@@ -27,6 +29,7 @@ export const DEFAULT_SETTINGS: MyTodoSettings = {
 	clientSecret: "",
 	redirectUrl: "http://localhost:5000",
 	enableConfetti: true,
+	confettiType: "regular",
 };
 
 export class MyTodoSettingTab extends PluginSettingTab {
@@ -133,6 +136,18 @@ export class MyTodoSettingTab extends PluginSettingTab {
 			.setDesc(
 				"Show a confetti celebration when all tasks are completed.",
 			)
+			.addDropdown((drop) => {
+				drop.addOption("regular", " Regular");
+				drop.addOption("big", " Big");
+				drop.addOption("superbig", " Super BIG");
+
+				drop.setValue(this.settings.confettiType);
+				drop.onChange(async (value) => {
+					this.settings.confettiType = value as any;
+					await this.plugin.saveSettings();
+					playConfetti(this.settings.confettiType);
+				});
+			})
 			.addToggle((toggle) =>
 				toggle
 					.setValue(this.settings.enableConfetti)
