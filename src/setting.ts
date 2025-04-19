@@ -13,6 +13,8 @@ export interface MyTodoSettings {
 	clientId: string;
 	clientSecret: string;
 	redirectUrl: string;
+
+	enableConfetti: boolean;
 }
 
 export const DEFAULT_SETTINGS: MyTodoSettings = {
@@ -24,6 +26,7 @@ export const DEFAULT_SETTINGS: MyTodoSettings = {
 	clientId: "",
 	clientSecret: "",
 	redirectUrl: "http://localhost:5000",
+	enableConfetti: true,
 };
 
 export class MyTodoSettingTab extends PluginSettingTab {
@@ -124,5 +127,19 @@ export class MyTodoSettingTab extends PluginSettingTab {
 					await this.plugin.saveSettings();
 				});
 			});
+
+		new Setting(containerEl)
+			.setName("Enable Confetti")
+			.setDesc(
+				"Show a confetti celebration when all tasks are completed.",
+			)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.settings.enableConfetti)
+					.onChange(async (value) => {
+						this.settings.enableConfetti = value;
+						await this.plugin.saveSettings();
+					}),
+			);
 	}
 }

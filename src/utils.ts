@@ -31,9 +31,11 @@ export function notify(
  * @param count   Total particle budget. Default is 200.
  */
 export function playConfetti(
+	enable: boolean,
 	origin: { x: number; y: number } = { x: 0.5, y: 0.7 },
 	count: number = 200,
 ) {
+	if (!enable) return;
 	const defaults = { origin };
 
 	// helper to fire one of your bursts

@@ -5,7 +5,7 @@
 ## Feature/beatify-sidebar
 
 - [>] Beautify nav-header
-- [ ] Add special animation when complete all task
+- [x] Add special animation when complete all task
 
 # Complete
 

@@ -120,10 +120,6 @@ export class TaskSidebarView extends ItemView {
 		filteredTasks.forEach((task) => {
 			this.renderTaskLine(task);
 		});
-		container.createEl("div", {
-			text: "Hello",
-			cls: "gif-box",
-		});
 	}
 
 	/**
@@ -240,7 +236,7 @@ export class TaskSidebarView extends ItemView {
 					(task) => task.status === "completed",
 				)
 			)
-				playConfetti();
+				playConfetti(this.plugin.settings.enableConfetti);
 			this.render();
 		} catch (error) {
 			console.error("Error updating task with checkbox:", error);
@@ -306,7 +302,7 @@ export class TaskSidebarView extends ItemView {
 		} else if (date === tomIso) {
 			return { text: "Tomorrow", cls: "task-due-date-tomorrow" };
 		} else if (date < iso) {
-			return { text: date, cls: "task-due-date-past" };
+			return { text: "Past Due", cls: "task-due-date-past" };
 		} else return { text: date, cls: "task-due-date" };
 	}
 
