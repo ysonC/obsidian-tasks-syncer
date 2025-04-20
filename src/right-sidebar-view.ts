@@ -218,6 +218,7 @@ export class TaskSidebarView extends ItemView {
 		checkbox.disabled = true;
 		const target = event.target as HTMLInputElement;
 		const newCompletedState = target.checked;
+		if (newCompletedState) this.runConfettiAnimation("regular");
 
 		try {
 			const accessToken = await this.plugin.getAccessToken();
@@ -236,8 +237,7 @@ export class TaskSidebarView extends ItemView {
 					(task) => task.status === "completed",
 				)
 			)
-				if (this.plugin.settings.enableConfetti)
-					playConfetti(this.plugin.settings.confettiType);
+				this.runConfettiAnimation(this.plugin.settings.confettiType);
 			this.render();
 		} catch (error) {
 			console.error("Error updating task with checkbox:", error);
@@ -335,5 +335,9 @@ export class TaskSidebarView extends ItemView {
 		return btn;
 	}
 
-	async onClose() {}
+	private runConfettiAnimation(type: string) {
+		if (this.plugin.settings.enableConfetti) playConfetti(type);
+	}
+
+	async onClose() { }
 }
