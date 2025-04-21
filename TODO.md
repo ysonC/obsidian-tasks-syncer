@@ -2,13 +2,12 @@
 
 - [ ] Add option in setting to set time zone
 
-## Feature/beatify-sidebar
-
-- [>] Beautify nav-header
-- [x] Add special animation when complete all task
-
 # Complete
 
+## Feature/beatify-sidebar
+
+- [x] Beautify nav-header
+- [x] Add special animation when complete all task
 - [x] Change icon when toggle
 - [x] Alway sort complete task at the bottom
 - [x] Change css injection to proper file
