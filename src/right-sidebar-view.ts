@@ -286,13 +286,14 @@ export class TaskSidebarView extends ItemView {
 		const tomorrow = new Date();
 		tomorrow.setDate(tomorrow.getDate() + 1);
 		const tomIso = tomorrow.toISOString().slice(0, 10);
+
 		if (status === "completed") return { text: date, cls: "task-due-date" };
 
 		if (date === iso) {
 			return { text: "Today", cls: "task-due-date-now" };
 		} else if (date === tomIso) {
 			return { text: "Tomorrow", cls: "task-due-date-tomorrow" };
-		} else if (date < iso) {
+		} else if (date && date < iso) {
 			return { text: "Past Due", cls: "task-due-date-past" };
 		} else return { text: date, cls: "task-due-date" };
 	}
