@@ -16,16 +16,28 @@ interface GraphResponse<T> {
  * One-stop shop for Microsoft To-Do via Graph.
  */
 export class MicrosoftTaskService {
+	/**
+	 * @param plugin The main plugin instance, used to get fresh tokens and settings.
+	 */
 	constructor(private plugin: TaskSyncerPlugin) { }
 
-	/** Internal generic Graph request */
+	/**
+	 * Internal generic Graph request.
+	 *
+	 * @template T  The expected shape of the JSON response.
+	 * @param path  The Graph API path (e.g. `/me/todo/lists/{listId}/tasks`). May include `{listId}`.
+	 * @param method  HTTP method to use (`GET`, `POST`, `PATCH`, or `DELETE`).
+	 * @param body  Optional request payload, which will be JSON-stringified if provided.
+	 * @param extraHeaders  Any additional headers to merge into the request.
+	 * @returns  A promise resolving to the raw Graph response (status, parsed JSON, and raw text).
+	 * @throws  If no access token is available or if `path` requires a listId that isn’t set.
+	 */
 	private async request<T>(
 		path: string,
 		method: HttpMethod = "GET",
 		body?: any,
 		extraHeaders: Record<string, string> = {},
 	): Promise<GraphResponse<T>> {
-		// always re-fetch the token and the listId
 		const accessToken = await this.plugin.getAccessToken();
 		const listId = this.plugin.settings.selectedTaskListId;
 		if (!accessToken) throw new Error("Missing access token");
@@ -33,7 +45,6 @@ export class MicrosoftTaskService {
 			throw new Error("Missing selectedTaskListId in settings");
 		}
 
-		// substitute {listId} placeholder if you like, or just do it manually in callers
 		const url = path.startsWith("http")
 			? path
 			: `${GRAPH_BASE}${path.replace("{listId}", listId)}`;
@@ -50,7 +61,12 @@ export class MicrosoftTaskService {
 		return requestUrl(params) as Promise<GraphResponse<T>>;
 	}
 
-	/** List all To-Do lists in the user’s mailbox */
+	/**
+	 * Fetches all To-Do lists in the user’s mailbox.
+	 *
+	 * @returns  An array of task lists, each with an `id` and `title`.
+	 * @throws  If the Graph call fails (non-200 status).
+	 */
 	async fetchTaskLists(): Promise<TaskList[]> {
 		const res = await this.request<{ value: any[] }>(`/me/todo/lists`);
 		if (res.status !== 200) {
@@ -63,7 +79,12 @@ export class MicrosoftTaskService {
 		});
 	}
 
-	/** Fetch all tasks in the selected list */
+	/**
+	 * Fetches all tasks in the currently selected list.
+	 *
+	 * @returns  A `Map` keyed by task title, with full `TaskItem` data.
+	 * @throws  If no list is selected or the Graph call fails (non-200 status).
+	 */
 	async fetchTasks(): Promise<Map<string, TaskItem>> {
 		const res = await this.request<{ value: any[] }>(
 			`/me/todo/lists/{listId}/tasks`,
@@ -87,7 +108,14 @@ export class MicrosoftTaskService {
 		return map;
 	}
 
-	/** Create a new task in the current list */
+	/**
+	 * Creates a new task in the selected list.
+	 *
+	 * @param title  The title for the new task.
+	 * @param dueDate  Optional ISO-8601 string for its due date (e.g. `"2025-05-01T10:00:00"`).
+	 * @returns  A promise that resolves once the task is created.
+	 * @throws  If no list is selected or the Graph call fails (non-201 status).
+	 */
 	async createTask(title: string, dueDate?: string): Promise<void> {
 		const body: any = { title };
 		if (dueDate) {
@@ -106,7 +134,16 @@ export class MicrosoftTaskService {
 		}
 	}
 
-	/** Update title, completion status or due-date on a task */
+	/**
+	 * Updates an existing task’s title, completion status, or due date.
+	 *
+	 * @param taskId  The Graph ID of the task to update.
+	 * @param opts.title  If provided, the new title for the task.
+	 * @param opts.status  If provided, `true` → mark complete; `false` → mark not started.
+	 * @param opts.dueDate  If provided, an ISO-8601 string for the new due date.
+	 * @returns  A promise that resolves once the task is updated.
+	 * @throws  If no list is selected or the Graph call fails (non-200 status).
+	 */
 	async updateTask(
 		taskId: string,
 		opts: { title?: string; status?: boolean; dueDate?: string },
@@ -131,7 +168,13 @@ export class MicrosoftTaskService {
 		}
 	}
 
-	/** Delete a task by ID */
+	/**
+	 * Deletes a task from the selected list.
+	 *
+	 * @param taskId  The Graph ID of the task to delete.
+	 * @returns  A promise that resolves once the task is deleted.
+	 * @throws  If no list is selected or the Graph call fails (non-204 status).
+	 */
 	async deleteTask(taskId: string): Promise<void> {
 		const res = await this.request<void>(
 			`/me/todo/lists/{listId}/tasks/${taskId}`,
@@ -142,7 +185,13 @@ export class MicrosoftTaskService {
 		}
 	}
 
-	/** Rename the current task list */
+	/**
+	 * Renames the currently selected task list.
+	 *
+	 * @param newName  The new display name for the list.
+	 * @returns  A promise that resolves once the list is renamed.
+	 * @throws  If no list is selected or the Graph call fails (non-2xx status).
+	 */
 	async updateTaskListName(newName: string): Promise<void> {
 		const res = await this.request<any>(
 			`/me/todo/lists/{listId}`,
