@@ -1,7 +1,6 @@
 import { ItemView, setIcon, WorkspaceLeaf } from "obsidian";
 import type TaskSyncerPlugin from "src/main";
 import { notify, playConfetti } from "./utils";
-import { updateTask } from "./api";
 import { TaskItem, TaskInputResult } from "./types";
 import { TaskTitleModal } from "./task-title-modal";
 
@@ -184,15 +183,11 @@ export class TaskSidebarView extends ItemView {
 			this.app,
 			async (result: TaskInputResult) => {
 				try {
-					const accessToken = await this.plugin.getAccessToken();
-					await updateTask(
-						this.plugin.settings,
-						accessToken,
-						task.id,
-						result.title,
-						false,
-						result.dueDate,
-					);
+					await this.plugin.api.updateTask(task.id, {
+						title: result.title,
+						dueDate: result.dueDate,
+						status: false,
+					});
 					this.getNewTasksRender();
 					console.log("Edit task complete");
 				} catch (error) {
@@ -221,14 +216,9 @@ export class TaskSidebarView extends ItemView {
 		if (newCompletedState) this.runConfettiAnimation("regular");
 
 		try {
-			const accessToken = await this.plugin.getAccessToken();
-			await updateTask(
-				this.plugin.settings,
-				accessToken,
-				task.id,
-				undefined,
-				newCompletedState,
-			);
+			await this.plugin.api.updateTask(task.id, {
+				status: newCompletedState,
+			});
 
 			task.status = newCompletedState ? "completed" : "notstarted";
 			const refreshedTasks = await this.plugin.refreshTaskCache();

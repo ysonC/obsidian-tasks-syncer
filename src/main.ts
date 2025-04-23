@@ -4,13 +4,6 @@ import * as dotenv from "dotenv";
 import * as path from "path";
 import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "./setting";
 import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "./right-sidebar-view";
-// import {
-// 	fetchTasks,
-// 	createTask,
-// 	updateTask,
-// 	fetchTaskLists,
-// 	deleteTask,
-// } from "./api";
 import { AuthManager } from "./auth";
 import { TaskTitleModal } from "./task-title-modal";
 import { GenericSelectModal } from "./select-modal";
