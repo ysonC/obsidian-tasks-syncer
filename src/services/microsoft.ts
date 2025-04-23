@@ -109,12 +109,12 @@ export class MicrosoftTaskService {
 	/** Update title, completion status or due-date on a task */
 	async updateTask(
 		taskId: string,
-		opts: { title?: string; done?: boolean; dueDate?: string },
+		opts: { title?: string; status?: boolean; dueDate?: string },
 	): Promise<void> {
 		const body: any = {};
 		if (opts.title !== undefined) body.title = opts.title;
-		if (opts.done !== undefined)
-			body.status = opts.done ? "completed" : "notStarted";
+		if (opts.status !== undefined)
+			body.status = opts.status ? "completed" : "notStarted";
 		if (opts.dueDate !== undefined) {
 			body.dueDateTime = {
 				dateTime: opts.dueDate,
