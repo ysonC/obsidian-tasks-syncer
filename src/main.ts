@@ -4,18 +4,12 @@ import * as dotenv from "dotenv";
 import * as path from "path";
 import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "./setting";
 import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "./right-sidebar-view";
-import {
-	fetchTasks,
-	createTask,
-	updateTask,
-	fetchTaskLists,
-	deleteTask,
-} from "./api";
 import { AuthManager } from "./auth";
 import { TaskTitleModal } from "./task-title-modal";
 import { GenericSelectModal } from "./select-modal";
 import { notify } from "./utils";
 import { TaskCache, TaskInputResult, TaskItem, TaskList } from "./types";
+import { MicrosoftTaskService } from "./services/microsoft";
 
 /**
  * Main plugin class for syncing tasks between Obsidian and Microsoft To‑Do.
@@ -26,6 +20,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	tokenFilePath: string;
 	authManager: AuthManager;
 	taskCache: TaskCache | null = null;
+	api: MicrosoftTaskService;
 
 	/**
 	 * Called when the plugin is activated.
@@ -73,6 +68,7 @@ export default class TaskSyncerPlugin extends Plugin {
 			this.authManager.cca.getTokenCache().deserialize(cacheData);
 			console.log("Token cache loaded from file.");
 		}
+		this.api = new MicrosoftTaskService(this);
 	}
 
 	/**
@@ -323,8 +319,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	async loadAvailableTaskLists(): Promise<void> {
 		notify("Loading task lists...");
 		try {
-			const accessToken = await this.getAccessToken();
-			const listArray = await fetchTaskLists(accessToken);
+			const listArray = await this.api.fetchTaskLists();
 			console.log("Fetched Task Lists:", listArray);
 
 			this.settings.taskLists = listArray.map((list) => ({
@@ -348,8 +343,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	 * */
 	async getTaskLists(): Promise<TaskList[]> {
 		try {
-			const accessToken = await this.getAccessToken();
-			const taskLists = await fetchTaskLists(accessToken);
+			const taskLists = await this.api.fetchTaskLists();
 			return taskLists;
 		} catch (error) {
 			console.error("Error fetching task lists:", error);
@@ -414,10 +408,7 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 
 		try {
-			// Get a fresh access token.
-			const accessToken = await this.getAccessToken();
-			// Fetch existing tasks from Microsoft To‑Do via API.
-			const existingTasks = await fetchTasks(this.settings, accessToken);
+			const existingTasks = await this.api.fetchTasks();
 			let newTasksCount = 0;
 
 			// Loop over each note task.
@@ -426,29 +417,16 @@ export default class TaskSyncerPlugin extends Plugin {
 				if (existingTask) {
 					// If the task exists and the note marks it as complete while its status is not complete, update it.
 					if (task.complete && existingTask.status !== "completed") {
-						await updateTask(
-							this.settings,
-							accessToken,
-							existingTask.id,
-							undefined,
-							true,
-						);
+						await this.api.updateTask(existingTask.id, {
+							status: true,
+						});
 					} else {
 						console.log(`Task already exists: ${task.title}`);
 					}
 					continue;
 				}
 
-				// If the task doesn't exist, create it with the appropriate status.
-				const initialStatus = task.complete
-					? "completed"
-					: "notStarted";
-				await createTask(
-					this.settings,
-					accessToken,
-					task.title,
-					initialStatus,
-				);
+				await this.api.createTask(task.title);
 				newTasksCount++;
 			}
 			console.log("Synced Tasks:", noteTasks);
@@ -471,15 +449,14 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 
 		try {
-			const accessToken = await this.getAccessToken();
-			const existingTasks = await fetchTasks(this.settings, accessToken);
+			const existingTasks = await this.api.fetchTasks();
 			const existingTask = existingTasks.get(task);
 
 			if (existingTask) {
 				console.log(`Task already exists: ${task}`);
 			}
 
-			await createTask(this.settings, accessToken, task, dueDate);
+			await this.api.createTask(task, dueDate);
 			await this.refreshViewAndCache();
 		} catch (error) {
 			console.error("Error syncing tasks:", error);
@@ -594,14 +571,9 @@ export default class TaskSyncerPlugin extends Plugin {
 			(task) => (task.status !== "completed" ? task.title : ""),
 			async (task: { title: string; status: string; id: string }) => {
 				notify(`Marking "${task.title}" as complete...`);
-				const accessToken = await this.getAccessToken();
-				await updateTask(
-					this.settings,
-					accessToken,
-					task.id,
-					undefined,
-					true,
-				);
+				await this.api.updateTask(task.id, {
+					status: true,
+				});
 				notify(
 					`Task "${task.title}" marked as complete and synced.`,
 					"success",
@@ -633,8 +605,7 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 
 		try {
-			const accessToken = await this.getAccessToken();
-			const tasks = await fetchTasks(this.settings, accessToken);
+			const tasks = await this.api.fetchTasks();
 
 			this.taskCache = { tasks: Array.from(tasks.entries()) };
 
@@ -659,7 +630,6 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		let deletedTasksCount = 0;
 		try {
-			const accessToken = await this.getAccessToken();
 			const tasks = await this.getTasksFromSelectedList();
 			const completedTasks = Array.from(tasks.values()).filter(
 				(task) => task.status === "completed",
@@ -667,7 +637,7 @@ export default class TaskSyncerPlugin extends Plugin {
 
 			for (const task of completedTasks) {
 				console.log("Deleting Task:", task);
-				await deleteTask(this.settings, accessToken, task.id);
+				await this.api.deleteTask(task.id);
 				deletedTasksCount++;
 			}
 

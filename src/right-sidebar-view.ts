@@ -1,7 +1,6 @@
 import { ItemView, setIcon, WorkspaceLeaf } from "obsidian";
 import type TaskSyncerPlugin from "src/main";
 import { notify, playConfetti } from "./utils";
-import { updateTask } from "./api";
 import { TaskItem, TaskInputResult } from "./types";
 import { TaskTitleModal } from "./task-title-modal";
 
@@ -184,15 +183,11 @@ export class TaskSidebarView extends ItemView {
 			this.app,
 			async (result: TaskInputResult) => {
 				try {
-					const accessToken = await this.plugin.getAccessToken();
-					await updateTask(
-						this.plugin.settings,
-						accessToken,
-						task.id,
-						result.title,
-						false,
-						result.dueDate,
-					);
+					await this.plugin.api.updateTask(task.id, {
+						title: result.title,
+						dueDate: result.dueDate,
+						status: false,
+					});
 					this.getNewTasksRender();
 					console.log("Edit task complete");
 				} catch (error) {
@@ -221,14 +216,9 @@ export class TaskSidebarView extends ItemView {
 		if (newCompletedState) this.runConfettiAnimation("regular");
 
 		try {
-			const accessToken = await this.plugin.getAccessToken();
-			await updateTask(
-				this.plugin.settings,
-				accessToken,
-				task.id,
-				undefined,
-				newCompletedState,
-			);
+			await this.plugin.api.updateTask(task.id, {
+				status: newCompletedState,
+			});
 
 			task.status = newCompletedState ? "completed" : "notstarted";
 			const refreshedTasks = await this.plugin.refreshTaskCache();
@@ -296,13 +286,14 @@ export class TaskSidebarView extends ItemView {
 		const tomorrow = new Date();
 		tomorrow.setDate(tomorrow.getDate() + 1);
 		const tomIso = tomorrow.toISOString().slice(0, 10);
+
 		if (status === "completed") return { text: date, cls: "task-due-date" };
 
 		if (date === iso) {
 			return { text: "Today", cls: "task-due-date-now" };
 		} else if (date === tomIso) {
 			return { text: "Tomorrow", cls: "task-due-date-tomorrow" };
-		} else if (date < iso) {
+		} else if (date && date < iso) {
 			return { text: "Past Due", cls: "task-due-date-past" };
 		} else return { text: date, cls: "task-due-date" };
 	}
