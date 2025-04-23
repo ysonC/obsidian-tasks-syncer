@@ -32,3 +32,16 @@ export interface TaskInputResult {
 	title: string;
 	dueDate?: string;
 }
+
+export interface TaskService {
+	fetchTaskLists(): Promise<TaskList[]>;
+	fetchTasks(listId: string): Promise<Map<string, TaskItem>>;
+	createTask(listId: string, title: string, dueDate?: string): Promise<void>;
+	updateTask(
+		listId: string,
+		taskId: string,
+		opts: { title?: string; done?: boolean; dueDate?: string },
+	): Promise<void>;
+	deleteTask(listId: string, taskId: string): Promise<void>;
+	updateTaskListName(listId: string, newName: string): Promise<void>;
+}

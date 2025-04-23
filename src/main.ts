@@ -16,6 +16,7 @@ import { TaskTitleModal } from "./task-title-modal";
 import { GenericSelectModal } from "./select-modal";
 import { notify } from "./utils";
 import { TaskCache, TaskInputResult, TaskItem, TaskList } from "./types";
+import { MicrosoftTaskService } from "./services/microsoft";
 
 /**
  * Main plugin class for syncing tasks between Obsidian and Microsoft To‑Do.
@@ -633,8 +634,8 @@ export default class TaskSyncerPlugin extends Plugin {
 		}
 
 		try {
-			const accessToken = await this.getAccessToken();
-			const tasks = await fetchTasks(this.settings, accessToken);
+			const api = new MicrosoftTaskService(this);
+			const tasks = await api.fetchTasks();
 
 			this.taskCache = { tasks: Array.from(tasks.entries()) };
 
