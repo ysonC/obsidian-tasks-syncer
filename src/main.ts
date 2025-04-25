@@ -68,7 +68,17 @@ export default class TaskSyncerPlugin extends Plugin {
 			this.authManager.cca.getTokenCache().deserialize(cacheData);
 			console.log("Token cache loaded from file.");
 		}
-		this.api = new MicrosoftTaskService(this);
+
+		// 7. Set up api base on selection in setting
+		const service = this.settings.selectedService;
+		switch (service) {
+			case "microsoft":
+				this.api = new MicrosoftTaskService(this);
+				break;
+			default:
+				notify("Please select a service to sync in setting!", "info");
+				break;
+		}
 	}
 
 	/**
