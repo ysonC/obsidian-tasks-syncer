@@ -5,6 +5,7 @@ import { playConfetti } from "./utils";
 export interface MyTodoSettings {
 	selectedTaskListId: string;
 	selectedTaskListTitle: string;
+	selectedService: string;
 
 	showComplete: boolean;
 	showDueDate: boolean;
@@ -22,6 +23,7 @@ export interface MyTodoSettings {
 export const DEFAULT_SETTINGS: MyTodoSettings = {
 	selectedTaskListId: "",
 	selectedTaskListTitle: "",
+	selectedService: "",
 	showComplete: true,
 	showDueDate: false,
 	taskLists: [],
@@ -47,7 +49,22 @@ export class MyTodoSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		containerEl.createEl("h2", { text: "Microsoft To‑Do Settings" });
 
-		// Add a section for entering client ID and secret.
+		new Setting(containerEl)
+			.setName("Service")
+			.setDesc("Select the service for this plugin to sync")
+			.addDropdown((drop) => {
+				// Add a default option.
+				drop.addOption("", "Select a task list");
+				drop.addOption("microsoft", "Microsoft Task");
+				drop.addOption("google", "Google Tasks");
+				drop.setValue(this.settings.selectedService);
+				drop.onChange(async (value) => {
+					this.settings.selectedService = value as any;
+					await this.plugin.saveSettings();
+					console.log(this.settings.selectedService);
+				});
+			});
+
 		new Setting(containerEl)
 			.setName("Client Details")
 			.setDesc(
