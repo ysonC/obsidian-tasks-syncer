@@ -1,5 +1,6 @@
 # Todo
 
+- [ ] Add Todoist service
 - [ ] Add option in setting to set time zone
 
 # Complete
