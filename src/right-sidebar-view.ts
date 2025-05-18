@@ -45,7 +45,7 @@ export class TaskSidebarView extends ItemView {
 		this.setupNavHeader();
 		this.taskContainer = mainContainer.createDiv("tasks-group");
 
-		this.getNewTasksRender();
+		this.getNewTasksRender(true);
 	}
 
 	/**
@@ -62,7 +62,7 @@ export class TaskSidebarView extends ItemView {
 		setIcon(refreshBtn, "refresh-cw");
 		refreshBtn.title = "Refresh Tasks";
 		refreshBtn.onclick = async () => {
-			this.getNewTasksRender();
+			this.getNewTasksRender(true);
 		};
 
 		this.createToggleButton(
@@ -123,20 +123,26 @@ export class TaskSidebarView extends ItemView {
 
 	/**
 	 * Refresh task and show animation.
+	 * @param spin Show spin animation or not
 	 */
-	private async getNewTasksRender() {
-		const container = this.taskContainer;
-		container.empty();
-		const wrapper = container.createDiv({ cls: "spinner-wrapper" });
-		wrapper.createDiv({ cls: "loading-spinner" });
-		wrapper.createEl("div", { text: "Loading tasks…" });
+	private async getNewTasksRender(spin: boolean) {
+		let wrapper: HTMLElement | null = null;
+
+		if (spin) {
+			const container = this.taskContainer;
+			container.empty();
+			wrapper = container.createDiv({ cls: "spinner-wrapper" });
+			wrapper.createDiv({ cls: "loading-spinner" });
+			wrapper.createEl("div", { text: "Loading tasks…" });
+		}
+
 		try {
 			await this.plugin.refreshTaskCache();
 		} catch (error) {
 			console.error("Error refreshing tasks: ", error);
 			notify("Failed to refresh tasks", "error");
 		} finally {
-			wrapper.remove();
+			if (wrapper) wrapper.remove();
 			this.render();
 		}
 	}
@@ -188,7 +194,7 @@ export class TaskSidebarView extends ItemView {
 						dueDate: result.dueDate,
 						status: false,
 					});
-					this.getNewTasksRender();
+					this.getNewTasksRender(false);
 					console.log("Edit task complete");
 				} catch (error) {
 					console.error("Error pushing tasks:", error);
@@ -228,7 +234,7 @@ export class TaskSidebarView extends ItemView {
 				)
 			)
 				this.runConfettiAnimation(this.plugin.settings.confettiType);
-			this.render();
+			this.getNewTasksRender(false);
 		} catch (error) {
 			console.error("Error updating task with checkbox:", error);
 			notify("Failed to update task", "error");
@@ -320,7 +326,7 @@ export class TaskSidebarView extends ItemView {
 		btn.onclick = async () => {
 			await flipState();
 			updateIcon();
-			this.render();
+			this.getNewTasksRender(true);
 		};
 
 		return btn;
@@ -330,5 +336,5 @@ export class TaskSidebarView extends ItemView {
 		if (this.plugin.settings.enableConfetti) playConfetti(type);
 	}
 
-	async onClose() { }
+	async onClose() {}
 }
