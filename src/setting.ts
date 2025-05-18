@@ -22,7 +22,7 @@ export interface MyTodoSettings {
 export const DEFAULT_SETTINGS: MyTodoSettings = {
 	selectedTaskListId: "",
 	selectedTaskListTitle: "",
-	selectedService: "",
+	selectedService: "microsoft",
 	showComplete: true,
 	showDueDate: false,
 	taskLists: [],
