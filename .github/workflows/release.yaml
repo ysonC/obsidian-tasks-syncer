@@ -4,10 +4,6 @@ on:
     push:
         paths:
             - "manifest.json"
-    pull_request:
-        types: [closed]
-        paths:
-            - "manifest.json"
 
 jobs:
     release:
