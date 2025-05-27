@@ -1,10 +1,10 @@
 name: Release Obsidian Plugin
 
 on:
-    push:
+    pull_request:
+        types: [closed]
         paths:
             - "manifest.json"
-
 jobs:
     release:
         runs-on: ubuntu-latest
