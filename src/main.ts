@@ -12,7 +12,7 @@ import { TaskCache, TaskInputResult, TaskItem, TaskList } from "./types";
 import { MicrosoftTaskService } from "./services/microsoft";
 
 /**
- * Main plugin class for syncing tasks between Obsidian and Microsoft To‑Do.
+ * Main plugin class for syncing tasks between Obsidian and Task manager.
  */
 export default class TaskSyncerPlugin extends Plugin {
 	settings: MyTodoSettings;
@@ -87,8 +87,8 @@ export default class TaskSyncerPlugin extends Plugin {
 	initializeCommand(): void {
 		// Register command to open the sidebar.
 		this.addCommand({
-			id: "open-microsoft-todo-sidebar",
-			name: "Open Microsoft To-Do Sidebar",
+			id: "open-todo-sidebar",
+			name: "Open To-Do Sidebar",
 			callback: async () => {
 				this.activateSidebar();
 			},
@@ -96,8 +96,8 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		// Register interactive login command.
 		this.addCommand({
-			id: "login-microsoft-todo",
-			name: "Login to Microsoft To-Do (Interactive)",
+			id: "login-task-manager",
+			name: "Login to task manager (Interactive)",
 			callback: async () => {
 				try {
 					notify("Logging in...");
@@ -115,8 +115,8 @@ export default class TaskSyncerPlugin extends Plugin {
 
 		// Register token refresh command.
 		this.addCommand({
-			id: "refresh-microsoft-todo-token",
-			name: "Refresh Microsoft To-Do Token",
+			id: "refresh-task-manager-token",
+			name: "Refresh Task Manager Token",
 			callback: async () => {
 				try {
 					const tokenData =
@@ -158,10 +158,10 @@ export default class TaskSyncerPlugin extends Plugin {
 		// Register command to sync task lists for the current note.
 		this.addCommand({
 			id: "push-all-tasks-from-note",
-			name: "Push All Tasks from Note to Microsoft To-Do",
+			name: "Push All Tasks from Note",
 			callback: async () => {
 				try {
-					notify("Syncing tasks to Microsoft To-Do...");
+					notify("Syncing tasks ...");
 					const tasksCount = await this.pushTasksFromNote();
 					notify(
 						`Tasks synced successfully! ${tasksCount} new tasks added.`,
@@ -324,7 +324,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	}
 
 	/**
-	 * Fetches available Microsoft To-Do task lists and updates the plugin settings.
+	 * Fetches available task lists and updates the plugin settings.
 	 */
 	async loadAvailableTaskLists(): Promise<void> {
 		notify("Loading task lists...");
@@ -362,7 +362,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	}
 
 	/**
-	 * Fetches tasks from the selected Microsoft To‑Do list.
+	 * Fetches tasks from the selected list.
 	 * @returns A map of task title to an object containing task details.
 	 */
 	async getTasksFromSelectedList(): Promise<Map<string, TaskItem>> {
@@ -386,7 +386,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	}
 
 	/**
-	 * Pushes tasks from the active note to Microsoft To‑Do.
+	 * Pushes tasks from  active note.
 	 * @returns The number of new tasks created.
 	 */
 	async pushTasksFromNote(): Promise<number> {
@@ -448,7 +448,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	}
 
 	/**
-	 * Pushes a single task to selected list in Microsoft To‑Do.
+	 * Pushes a single task to selected list.
 	 * @param task - The task title text to push.
 	 */
 	async pushOneTask(task: string, dueDate?: string) {
@@ -533,7 +533,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	async openPushTaskModal() {
 		new TaskTitleModal(this.app, async (result: TaskInputResult) => {
 			try {
-				notify("Pushing tasks to Microsoft To-Do...");
+				notify("Pushing tasks ...");
 				await this.pushOneTask(result.title, result.dueDate);
 				notify(`Tasks pushed successfully!`, "success");
 			} catch (error) {
