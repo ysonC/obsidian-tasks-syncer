@@ -5,11 +5,11 @@ import { playConfetti } from "./utils";
 export interface MyTodoSettings {
 	selectedTaskListId: string;
 	selectedTaskListTitle: string;
+	selectedService: string;
 
 	showComplete: boolean;
 	showDueDate: boolean;
 
-	// A list of available task lists, each with an id and display name.
 	taskLists: Array<{ id: string; title: string }>;
 	clientId: string;
 	clientSecret: string;
@@ -22,6 +22,7 @@ export interface MyTodoSettings {
 export const DEFAULT_SETTINGS: MyTodoSettings = {
 	selectedTaskListId: "",
 	selectedTaskListTitle: "",
+	selectedService: "microsoft",
 	showComplete: true,
 	showDueDate: false,
 	taskLists: [],
@@ -47,7 +48,22 @@ export class MyTodoSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		containerEl.createEl("h2", { text: "Microsoft To‑Do Settings" });
 
-		// Add a section for entering client ID and secret.
+		new Setting(containerEl)
+			.setName("Service")
+			.setDesc("Select the service for this plugin to sync")
+			.addDropdown((drop) => {
+				// Add a default option.
+				drop.addOption("", "Select a task list");
+				drop.addOption("microsoft", "Microsoft Task");
+				drop.addOption("google", "Google Tasks");
+				drop.setValue(this.settings.selectedService);
+				drop.onChange(async (value) => {
+					this.settings.selectedService = value as any;
+					await this.plugin.saveSettings();
+					console.log(this.settings.selectedService);
+				});
+			});
+
 		new Setting(containerEl)
 			.setName("Client Details")
 			.setDesc(
@@ -72,7 +88,6 @@ export class MyTodoSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		// Add a section for URL to redirect to after authentication.
 		new Setting(containerEl)
 			.setName("Redirect URL")
 			.setDesc("Enter the URL to redirect to after authentication.")
@@ -86,7 +101,6 @@ export class MyTodoSettingTab extends PluginSettingTab {
 					}),
 			);
 
-		// Add a button to get the task lists.
 		new Setting(containerEl)
 			.setName("Get Task Lists")
 			.setDesc("Click to get the list of available task lists.")
@@ -97,27 +111,22 @@ export class MyTodoSettingTab extends PluginSettingTab {
 				});
 			});
 
-		// Add a dropdown to select the task
 		new Setting(containerEl)
 			.setName("Task List")
 			.setDesc(
 				"Select the Microsoft To‑Do list to store your Obsidian tasks.",
 			)
 			.addDropdown((drop) => {
-				// Add a default option.
 				drop.addOption("", "Select a task list");
 
-				// Populate dropdown with available task lists.
 				if (this.settings.taskLists.length > 0) {
 					this.settings.taskLists.forEach((list) => {
 						drop.addOption(list.id, list.title);
 					});
 				} else {
-					// Optionally, inform the user no task lists are available.
 					drop.addOption("none", "No task lists available");
 				}
 
-				// Set the current value.
 				drop.setValue(this.settings.selectedTaskListId);
 				drop.onChange(async (value: string) => {
 					this.settings.selectedTaskListId = value;
