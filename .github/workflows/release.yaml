@@ -1,84 +1,277 @@
 name: Release Obsidian Plugin
 
 on:
-    push:
-        branches: [main]
-        paths:
-            - "manifest.json"
-            - ".github/workflows/release.yaml"
-    workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "styles.css"
+      - "manifest.json"
+      - "versions.json"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.json"
+      - "esbuild.config.mjs"
+      - "version-bump.mjs"
+      - "scripts/**"
+      - ".github/workflows/release.yaml"
+  workflow_dispatch:
 
-permissions:
-    contents: write
+permissions: {}
 
 concurrency:
-    group: release
-    cancel-in-progress: false
+  group: release
+  cancel-in-progress: false
 
 jobs:
-    release:
-        runs-on: ubuntu-latest
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.release_metadata.outputs.version }}
 
-        steps:
-            - uses: actions/checkout@v4
-              with:
-                  fetch-depth: 0
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
 
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: "22"
-                  cache: npm
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
 
-            - run: npm ci
+      - name: Install dependencies
+        run: npm ci
 
-            - run: npm run check
+      - name: Run full checks and production build
+        run: npm run check
 
-            - name: Validate release versions
-              id: get_version
-              run: |
-                  VERSION=$(node -p "require('./manifest.json').version")
-                  PACKAGE_VERSION=$(node -p "require('./package.json').version")
-                  MIN_APP_VERSION=$(node -p "require('./manifest.json').minAppVersion")
-                  VERSIONS_MIN_APP=$(VERSION="$VERSION" node -p "require('./versions.json')[process.env.VERSION] || ''")
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
 
-                  if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
-                    echo "package.json ($PACKAGE_VERSION) does not match manifest.json ($VERSION)"
-                    exit 1
+      - name: Record release metadata
+        id: release_metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./manifest.json').version")
+          printf 'version=%s\n' "$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Verify release source is current main
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          MAIN_COMMIT=$(git rev-parse FETCH_HEAD)
+          if [[ "$MAIN_COMMIT" != "$GITHUB_SHA" ]]; then
+            echo "Refusing to release $GITHUB_SHA because origin/main is $MAIN_COMMIT."
+            exit 1
+          fi
+
+      - name: Preserve verified release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-assets
+          path: |
+            main.js
+            manifest.json
+            styles.css
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download verified release assets
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-assets
+          path: release-assets
+
+      - name: Verify downloaded assets and current main
+        env:
+          VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          required_assets=(main.js manifest.json styles.css)
+          for asset in "${required_assets[@]}"; do
+            test -s "release-assets/$asset"
+          done
+          DOWNLOADED_VERSION=$(node -p "require('./release-assets/manifest.json').version")
+          if [[ "$DOWNLOADED_VERSION" != "$VERSION" ]]; then
+            echo "Downloaded manifest version $DOWNLOADED_VERSION does not match verified version $VERSION."
+            exit 1
+          fi
+
+          git fetch --no-tags origin main
+          MAIN_COMMIT=$(git rev-parse FETCH_HEAD)
+          if [[ "$MAIN_COMMIT" != "$GITHUB_SHA" ]]; then
+            echo "Refusing to mutate releases for $GITHUB_SHA because origin/main is now $MAIN_COMMIT."
+            exit 1
+          fi
+
+      - name: Inspect existing tag and release assets
+        id: existing_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          required_assets=(main.js manifest.json styles.css)
+
+          REMOTE_TAG=$(git ls-remote --tags origin "refs/tags/$VERSION")
+          if [[ -n "$REMOTE_TAG" ]]; then
+            git fetch --force origin "refs/tags/$VERSION:refs/tags/$VERSION"
+            TAG_EXISTS=true
+            TAG_COMMIT=$(git rev-parse "refs/tags/$VERSION^{commit}")
+          else
+            TAG_EXISTS=false
+            TAG_COMMIT=""
+          fi
+
+          if gh api "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" > release.json 2> release-error.txt; then
+            RELEASE_EXISTS=true
+          elif grep -q 'HTTP 404' release-error.txt; then
+            RELEASE_EXISTS=false
+            printf '{}\n' > release.json
+          else
+            cat release-error.txt
+            echo "Unable to determine whether release $VERSION exists."
+            exit 1
+          fi
+
+          if [[ "$RELEASE_EXISTS" == true && "$TAG_EXISTS" != true ]]; then
+            echo "Release $VERSION exists without the expected exact remote tag."
+            exit 1
+          fi
+
+          RELEASE_COMPLETE=false
+          if [[ "$RELEASE_EXISTS" == true ]]; then
+            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" \
+              --jq '.assets[] | [.name, .size] | @tsv' > asset-rows.txt
+            mapfile -t ASSET_ROWS < asset-rows.txt
+            if [[ ${#ASSET_ROWS[@]} -eq ${#required_assets[@]} ]]; then
+              RELEASE_COMPLETE=true
+              for required in "${required_assets[@]}"; do
+                MATCHED=false
+                for row in "${ASSET_ROWS[@]}"; do
+                  IFS=$'\t' read -r name size <<< "$row"
+                  if [[ "$name" == "$required" && "$size" =~ ^[1-9][0-9]*$ ]]; then
+                    MATCHED=true
+                    break
                   fi
+                done
+                if [[ "$MATCHED" != true ]]; then
+                  RELEASE_COMPLETE=false
+                  break
+                fi
+              done
+            fi
+          fi
 
-                  if [ "$VERSIONS_MIN_APP" != "$MIN_APP_VERSION" ]; then
-                    echo "versions.json entry for $VERSION is missing or does not match minAppVersion $MIN_APP_VERSION"
-                    exit 1
-                  fi
+          if [[ "$TAG_EXISTS" == true && "$RELEASE_COMPLETE" == true ]]; then
+            echo "Tag and complete GitHub release $VERSION already exist; skipping safely."
+            SKIP_RELEASE=true
+          elif [[ "$TAG_EXISTS" == true && "$TAG_COMMIT" != "$GITHUB_SHA" ]]; then
+            echo "Incomplete release recovery refused: $VERSION points to $TAG_COMMIT, not $GITHUB_SHA."
+            exit 1
+          else
+            SKIP_RELEASE=false
+          fi
 
-                  echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-                  echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          printf 'tag_exists=%s\n' "$TAG_EXISTS" >> "$GITHUB_OUTPUT"
+          printf 'release_exists=%s\n' "$RELEASE_EXISTS" >> "$GITHUB_OUTPUT"
+          printf 'skip=%s\n' "$SKIP_RELEASE" >> "$GITHUB_OUTPUT"
 
-            - name: Check if tag already exists
-              id: check_tag
-              run: |
-                  if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-                    echo "Tag v$VERSION already exists; skipping release."
-                    echo "exists=true" >> "$GITHUB_OUTPUT"
-                  else
-                    echo "exists=false" >> "$GITHUB_OUTPUT"
-                  fi
+      - name: Create exact version tag
+        if: steps.existing_release.outputs.tag_exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f ref="refs/tags/$VERSION" \
+            -f sha="$GITHUB_SHA" >/dev/null
 
-            - name: Create Git tag
-              if: steps.check_tag.outputs.exists == 'false'
-              run: |
-                  git config user.name "github-actions[bot]"
-                  git config user.email "github-actions[bot]@users.noreply.github.com"
-                  git tag "v$VERSION"
-                  git push origin "v$VERSION"
+      - name: Create release with verified assets
+        if: steps.existing_release.outputs.skip == 'false' && steps.existing_release.outputs.release_exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$VERSION" \
+            release-assets/main.js \
+            release-assets/manifest.json \
+            release-assets/styles.css \
+            --verify-tag \
+            --title "$VERSION" \
+            --generate-notes
 
-            - name: Create GitHub release
-              if: steps.check_tag.outputs.exists == 'false'
-              uses: softprops/action-gh-release@v2
-              with:
-                  tag_name: v${{ steps.get_version.outputs.version }}
-                  name: v${{ steps.get_version.outputs.version }}
-                  files: |
-                      main.js
-                      manifest.json
-                      versions.json
+      - name: Replace assets on incomplete release
+        if: steps.existing_release.outputs.skip == 'false' && steps.existing_release.outputs.release_exists == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" \
+            --jq '.assets[].id' > asset-ids.txt
+          mapfile -t ASSET_IDS < asset-ids.txt
+          for asset_id in "${ASSET_IDS[@]}"; do
+            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
+          done
+          gh release upload "$VERSION" \
+            release-assets/main.js \
+            release-assets/manifest.json \
+            release-assets/styles.css \
+            --clobber
+
+      - name: Verify final release asset set
+        if: steps.existing_release.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.verify.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          required_assets=(main.js manifest.json styles.css)
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" \
+            --jq '.assets[] | [.name, .size] | @tsv' > asset-rows.txt
+          mapfile -t ASSET_ROWS < asset-rows.txt
+          if [[ ${#ASSET_ROWS[@]} -ne ${#required_assets[@]} ]]; then
+            echo "Release $VERSION does not contain exactly the three required assets."
+            printf '%s\n' "${ASSET_ROWS[@]}"
+            exit 1
+          fi
+          for required in "${required_assets[@]}"; do
+            MATCHED=false
+            for row in "${ASSET_ROWS[@]}"; do
+              IFS=$'\t' read -r name size <<< "$row"
+              if [[ "$name" == "$required" && "$size" =~ ^[1-9][0-9]*$ ]]; then
+                MATCHED=true
+                break
+              fi
+            done
+            if [[ "$MATCHED" != true ]]; then
+              echo "Required release asset $required is missing or empty."
+              exit 1
+            fi
+          done
