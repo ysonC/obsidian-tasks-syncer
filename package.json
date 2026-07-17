@@ -1,11 +1,14 @@
 {
 	"name": "task-syncer-plugin",
-	"version": "1.4.6",
-	"description": "Sync Microsoft To‑Do tasks inside Obsidian.",
+	"version": "1.5.0",
+	"description": "Sync Microsoft To Do and TickTick tasks inside Obsidian.",
 	"main": "main.js",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"check": "npm test && npm run build",
 		"version": "node version-bump.mjs && git add manifest.json versions.json"
 	},
 	"keywords": [
@@ -13,6 +16,8 @@
 		"plugin",
 		"todo",
 		"microsoft",
+		"ticktick",
+		"oauth",
 		"tasks"
 	],
 	"author": "Wyson Cheng",
@@ -26,7 +31,8 @@
 		"esbuild": "^0.25.2",
 		"obsidian": "latest",
 		"tslib": "^2.4.0",
-		"typescript": "^4.7.4"
+		"typescript": "^4.7.4",
+		"vitest": "^0.34.6"
 	},
 	"dependencies": {
 		"@azure/msal-node": "^3.2.3",
