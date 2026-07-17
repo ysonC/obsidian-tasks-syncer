@@ -8,12 +8,14 @@ export interface TaskSyncerSettings {
 	version: 2; provider: ProviderId; providers: Record<ProviderId, ProviderSettings>;
 	showCompleted: boolean; showDueDate: boolean; enableConfetti: boolean;
 	confettiType: "regular" | "big" | "superbig"; timeZone: string;
+	autoSyncIntervalMinutes: number; autoSyncOnStartup: boolean;
 }
 const providerDefaults = (redirectUrl: string): ProviderSettings => ({ clientId: "", clientSecret: "", redirectUrl, selectedListId: "", selectedListTitle: "", taskLists: [] });
 export const createDefaultSettings = (): TaskSyncerSettings => ({
 	version: 2, provider: "microsoft",
 	providers: { microsoft: providerDefaults("http://localhost:5000"), ticktick: providerDefaults("http://localhost:5000") },
 	showCompleted: true, showDueDate: false, enableConfetti: true, confettiType: "regular",
+	autoSyncIntervalMinutes: 10, autoSyncOnStartup: false,
 	timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
 });
 export const DEFAULT_SETTINGS = createDefaultSettings();

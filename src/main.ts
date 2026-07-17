@@ -12,6 +12,7 @@ import { FileTokenStore } from "./auth";
 import { COMMAND_IDS } from "./commands";
 import { changeProviderCredential, changeTimeZone, SettingsEffects } from "./settings-actions";
 import { resolvePluginDirectory } from "./plugin-path";
+import { AutoSyncController } from "./auto-sync";
 
 export default class TaskSyncerPlugin extends Plugin {
 	settings: TaskSyncerSettings;
@@ -19,6 +20,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	taskCache: TaskCache | null = null;
 	private runtime?: ProviderRuntime;
 	private pluginDirectory: string;
+	private autoSync: AutoSyncController;
 	get api(): TaskService { return this.ensureRuntime().tasks; }
 	get providerSettings() { return this.settings.providers[this.settings.provider]; }
 
@@ -26,10 +28,24 @@ export default class TaskSyncerPlugin extends Plugin {
 		const basePath = (this.app.vault.adapter as any).basePath;
 		this.pluginDirectory = resolvePluginDirectory(basePath, this.manifest.dir, this.manifest.id);
 		await this.loadSettings();
+		this.autoSync = new AutoSyncController(
+			() => this.refreshViewAndCache(),
+			() => Boolean(this.providerSettings.selectedListId),
+			error => console.warn("Automatic task refresh failed:", error instanceof Error ? error.message : error),
+			{
+				setInterval: (callback, milliseconds) => this.registerInterval(window.setInterval(callback, milliseconds)),
+				clearInterval: id => window.clearInterval(id),
+			},
+		);
 		this.addSettingTab(new MyTodoSettingTab(this.app, this));
 		this.registerView(VIEW_TYPE_TODO_SIDEBAR, leaf => { const view = new TaskSidebarView(leaf, this); this.sidebarView = view; return view; });
 		this.initializeCommands();
+		this.configureAutoSync();
+		this.app.workspace.onLayoutReady(() => {
+			if (this.settings.autoSyncOnStartup) void this.autoSync.run();
+		});
 	}
+	onunload(): void { this.autoSync?.stop(); }
 	ensureRuntime(): ProviderRuntime { if (!this.runtime || this.runtime.id !== this.settings.provider) this.runtime = createProviderRuntime(this.settings.provider, this.settings, this.pluginDirectory); return this.runtime; }
 	async rebuildRuntime() { this.runtime = undefined; this.taskCache = null; }
 	async switchProvider(provider: ProviderId) { if (provider === this.settings.provider) return; this.settings.provider = provider; await this.rebuildRuntime(); await this.saveSettings(); if (this.sidebarView) await this.sidebarView.render(); }
@@ -59,6 +75,16 @@ export default class TaskSyncerPlugin extends Plugin {
 		await changeProviderCredential(this.settings, key, value, this.settingsEffects());
 	}
 	async updateTimeZone(value: string) { await changeTimeZone(this.settings, value, this.settingsEffects()); }
+	async updateAutoSyncInterval(minutes: number) {
+		this.settings.autoSyncIntervalMinutes = minutes;
+		await this.saveSettings();
+		this.configureAutoSync();
+	}
+	async updateAutoSyncOnStartup(enabled: boolean) {
+		this.settings.autoSyncOnStartup = enabled;
+		await this.saveSettings();
+	}
+	private configureAutoSync() { this.autoSync.configure(this.settings.autoSyncIntervalMinutes); }
 	async connectCurrentProvider() { await this.ensureRuntime().auth.login(); notify(`${this.settings.provider} connected.`, "success"); await this.refreshSidebar(); }
 	async disconnectCurrentProvider() { await this.ensureRuntime().auth.logout(); this.taskCache = null; notify(`${this.settings.provider} disconnected.`, "success"); await this.refreshSidebar(); }
 	private async runCommand(action: string, work: () => void | Promise<void>) { try { await work(); } catch (error) { this.reportError(action, error); } }

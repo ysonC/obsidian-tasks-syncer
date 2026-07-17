@@ -71,6 +71,29 @@ export class MyTodoSettingTab extends PluginSettingTab {
 		});
 
 		new Setting(containerEl)
+			.setName("Automatic refresh interval")
+			.setDesc("Fetch remote tasks in the background. This does not push Markdown tasks.")
+			.addDropdown(drop => drop
+				.addOption("0", "Disabled")
+				.addOption("1", "Every minute")
+				.addOption("5", "Every 5 minutes")
+				.addOption("10", "Every 10 minutes")
+				.addOption("15", "Every 15 minutes")
+				.addOption("30", "Every 30 minutes")
+				.addOption("60", "Every hour")
+				.setValue(String(this.plugin.settings.autoSyncIntervalMinutes))
+				.onChange(value => this.run("Automatic refresh update failed", () =>
+					this.plugin.updateAutoSyncInterval(Number(value)))));
+
+		new Setting(containerEl)
+			.setName("Refresh on startup")
+			.setDesc("Fetch remote tasks once after the Obsidian workspace is ready.")
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.autoSyncOnStartup)
+				.onChange(value => this.run("Startup refresh update failed", () =>
+					this.plugin.updateAutoSyncOnStartup(value))));
+
+		new Setting(containerEl)
 			.setName("Show completed tasks")
 			.setDesc(provider === "ticktick" ? "Loads TickTick's documented completed-task endpoint. Completed TickTick tasks cannot be reopened." : "Include completed tasks in the sidebar.")
 			.addToggle(toggle => toggle.setValue(this.plugin.settings.showCompleted).onChange(value =>
