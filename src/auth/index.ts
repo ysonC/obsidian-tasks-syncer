@@ -1,4 +1,5 @@
 import * as fs from "fs";
+import * as path from "path";
 
 export interface AuthProvider {
 	login(): Promise<string>;
@@ -10,7 +11,11 @@ export interface TokenStore { read(): Promise<string>; write(value: string): Pro
 export class FileTokenStore implements TokenStore {
 	constructor(private filePath: string) {}
 	async read() { return fs.existsSync(this.filePath) ? fs.readFileSync(this.filePath, "utf8") : ""; }
-	async write(value: string) { fs.writeFileSync(this.filePath, value, { mode: 0o600 }); fs.chmodSync(this.filePath, 0o600); }
+	async write(value: string) {
+		fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+		fs.writeFileSync(this.filePath, value, { mode: 0o600 });
+		fs.chmodSync(this.filePath, 0o600);
+	}
 	async remove() { if (fs.existsSync(this.filePath)) fs.unlinkSync(this.filePath); }
 }
 

@@ -11,6 +11,7 @@ import { ProviderId, TaskCache, TaskInputResult, TaskItem, TaskList, TaskService
 import { FileTokenStore } from "./auth";
 import { COMMAND_IDS } from "./commands";
 import { changeProviderCredential, changeTimeZone, SettingsEffects } from "./settings-actions";
+import { resolvePluginDirectory } from "./plugin-path";
 
 export default class TaskSyncerPlugin extends Plugin {
 	settings: TaskSyncerSettings;
@@ -23,7 +24,7 @@ export default class TaskSyncerPlugin extends Plugin {
 
 	async onload(): Promise<void> {
 		const basePath = (this.app.vault.adapter as any).basePath;
-		this.pluginDirectory = path.join(basePath, ".obsidian", "plugins", this.manifest.id);
+		this.pluginDirectory = resolvePluginDirectory(basePath, this.manifest.dir, this.manifest.id);
 		await this.loadSettings();
 		this.addSettingTab(new MyTodoSettingTab(this.app, this));
 		this.registerView(VIEW_TYPE_TODO_SIDEBAR, leaf => { const view = new TaskSidebarView(leaf, this); this.sidebarView = view; return view; });

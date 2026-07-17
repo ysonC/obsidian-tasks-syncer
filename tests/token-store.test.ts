@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { afterEach, describe, expect, it } from "vitest";
-import { migrateLegacyTokenCache } from "../src/auth";
+import { FileTokenStore, migrateLegacyTokenCache } from "../src/auth";
 
 const directories: string[] = [];
 function temporaryDirectory() {
@@ -11,6 +11,19 @@ function temporaryDirectory() {
 	return directory;
 }
 afterEach(() => directories.splice(0).forEach(directory => fs.rmSync(directory, { recursive: true, force: true })));
+
+describe("FileTokenStore", () => {
+	it("creates a missing plugin directory before writing a token", async () => {
+		const directory = temporaryDirectory();
+		const tokenPath = path.join(directory, "missing-plugin-directory", "ticktick-token-cache.json");
+		const store = new FileTokenStore(tokenPath);
+
+		await store.write('{"accessToken":"test"}');
+
+		expect(fs.readFileSync(tokenPath, "utf8")).toBe('{"accessToken":"test"}');
+		expect(fs.statSync(tokenPath).mode & 0o777).toBe(0o600);
+	});
+});
 
 describe("Microsoft token cache migration", () => {
 	it("moves the legacy cache to the provider-specific path with mode 0600", () => {
