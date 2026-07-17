@@ -5,8 +5,16 @@ on:
         branches: [main]
         paths:
             - "manifest.json"
+            - ".github/workflows/release.yaml"
+    workflow_dispatch:
+
 permissions:
     contents: write
+
+concurrency:
+    group: release
+    cancel-in-progress: false
+
 jobs:
     release:
         runs-on: ubuntu-latest
@@ -16,32 +24,47 @@ jobs:
               with:
                   fetch-depth: 0
 
-            - uses: actions/setup-node@v3
+            - uses: actions/setup-node@v4
               with:
-                  node-version: "18"
+                  node-version: "22"
+                  cache: npm
 
             - run: npm ci
 
-            - run: npm run build
+            - run: npm run check
 
-            - name: Get version from manifest.json
+            - name: Validate release versions
               id: get_version
               run: |
                   VERSION=$(node -p "require('./manifest.json').version")
-                  echo "VERSION=$VERSION" >> $GITHUB_ENV
-                  echo "version=$VERSION" >> $GITHUB_OUTPUT
+                  PACKAGE_VERSION=$(node -p "require('./package.json').version")
+                  MIN_APP_VERSION=$(node -p "require('./manifest.json').minAppVersion")
+                  VERSIONS_MIN_APP=$(VERSION="$VERSION" node -p "require('./versions.json')[process.env.VERSION] || ''")
+
+                  if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+                    echo "package.json ($PACKAGE_VERSION) does not match manifest.json ($VERSION)"
+                    exit 1
+                  fi
+
+                  if [ "$VERSIONS_MIN_APP" != "$MIN_APP_VERSION" ]; then
+                    echo "versions.json entry for $VERSION is missing or does not match minAppVersion $MIN_APP_VERSION"
+                    exit 1
+                  fi
+
+                  echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+                  echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
             - name: Check if tag already exists
               id: check_tag
               run: |
                   if git rev-parse "v$VERSION" >/dev/null 2>&1; then
-                    echo "Tag already exists. Skipping tag & release."
-                    echo "exists=true" >> $GITHUB_OUTPUT
+                    echo "Tag v$VERSION already exists; skipping release."
+                    echo "exists=true" >> "$GITHUB_OUTPUT"
                   else
-                    echo "exists=false" >> $GITHUB_OUTPUT
+                    echo "exists=false" >> "$GITHUB_OUTPUT"
                   fi
 
-            - name: Create Git Tag
+            - name: Create Git tag
               if: steps.check_tag.outputs.exists == 'false'
               run: |
                   git config user.name "github-actions[bot]"
@@ -49,9 +72,9 @@ jobs:
                   git tag "v$VERSION"
                   git push origin "v$VERSION"
 
-            - name: Create GitHub Release
+            - name: Create GitHub release
               if: steps.check_tag.outputs.exists == 'false'
-              uses: softprops/action-gh-release@v1
+              uses: softprops/action-gh-release@v2
               with:
                   tag_name: v${{ steps.get_version.outputs.version }}
                   name: v${{ steps.get_version.outputs.version }}
@@ -59,5 +82,3 @@ jobs:
                       main.js
                       manifest.json
                       versions.json
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
