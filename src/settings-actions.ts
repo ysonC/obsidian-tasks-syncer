@@ -1,9 +1,10 @@
 import { TaskSyncerSettings } from "./settings-model";
 
-type CredentialKey = "clientId" | "clientSecret" | "redirectUrl";
+type CredentialKey = "clientId" | "clientSecretId" | "redirectUrl";
 
 export interface SettingsEffects {
 	logout(): Promise<void>;
+
 	rebuild(): Promise<void>;
 	save(): Promise<void>;
 	refresh(): Promise<void>;

@@ -7,7 +7,7 @@ function actions() {
 }
 
 describe("settings actions", () => {
-	it.each(["clientId", "clientSecret", "redirectUrl"] as const)("invalidates auth before changing %s and rebuilding", async key => {
+	it.each(["clientId", "clientSecretId", "redirectUrl"] as const)("invalidates auth before changing %s and rebuilding", async key => {
 		const settings = migrateSettings(undefined);
 		const effects = actions();
 		const order: string[] = [];
@@ -15,6 +15,7 @@ describe("settings actions", () => {
 		effects.rebuild.mockImplementation(async () => { order.push("rebuild"); });
 		await changeProviderCredential(settings, key, "new-value", effects);
 		expect(settings.providers.microsoft[key]).toBe("new-value");
+		expect(settings.providers.microsoft).not.toHaveProperty("clientSecret");
 		expect(order).toEqual(["logout", "rebuild"]);
 		expect(effects.save).toHaveBeenCalledOnce();
 		expect(effects.refresh).toHaveBeenCalledOnce();

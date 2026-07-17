@@ -1,10 +1,10 @@
 import { requestUrl } from "obsidian";
-import * as path from "path";
-import { AuthProvider, FileTokenStore, migrateLegacyTokenCache } from "./auth";
+import { AuthProvider } from "./auth";
 import { MicrosoftAuthProvider, openOAuthWindow } from "./auth/microsoft";
 import { TickTickAuthProvider } from "./auth/ticktick";
 import { HttpClient } from "./http";
-import { ProviderSettings, TaskSyncerSettings } from "./settings-model";
+import { TaskSyncerSettings, tokenCacheSecretId } from "./settings-model";
+import { SecretStore, SecretTokenStore } from "./secret-store";
 import { MicrosoftTaskService } from "./services/microsoft";
 import { TickTickTaskService } from "./services/ticktick";
 import { ProviderId, TaskService } from "./types";
@@ -12,11 +12,14 @@ import { ProviderId, TaskService } from "./types";
 export interface ProviderRuntime { id: ProviderId; auth: AuthProvider; tasks: TaskService; }
 export const obsidianHttpClient: HttpClient = async (request) => requestUrl(request as any) as any;
 
-export function createProviderRuntime(id: ProviderId, settings: TaskSyncerSettings, pluginDirectory: string, http: HttpClient = obsidianHttpClient): ProviderRuntime {
-	const config: ProviderSettings = settings.providers[id];
-	const tokenPath = path.join(pluginDirectory, `${id}-token-cache.json`);
-	if (id === "microsoft") migrateLegacyTokenCache(path.join(pluginDirectory, "token_cache.json"), tokenPath);
-	const store = new FileTokenStore(tokenPath);
+export function createProviderRuntime(id: ProviderId, settings: TaskSyncerSettings, secrets: SecretStore, http: HttpClient = obsidianHttpClient): ProviderRuntime {
+	const persisted = settings.providers[id];
+	const config = {
+		clientId: persisted.clientId,
+		clientSecret: secrets.read(persisted.clientSecretId) ?? "",
+		redirectUrl: persisted.redirectUrl,
+	};
+	const store = new SecretTokenStore(secrets, tokenCacheSecretId(id));
 	if (id === "ticktick") {
 		const auth = new TickTickAuthProvider(config, store, http, openOAuthWindow);
 		return { id, auth, tasks: new TickTickTaskService(() => auth.getAccessToken(), http, settings.timeZone, () => auth.logout()) };

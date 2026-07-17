@@ -21,7 +21,7 @@ This is an opt-in desktop test. Automated tests never call TickTick or read a re
 8. Complete it. Enable completed tasks and verify it is shown completed and its checkbox is disabled (TickTick has no documented reopen endpoint).
 9. Push a note containing the same title with case/whitespace differences; verify no duplicate is created. Add a distinct checked task; verify it is created and completed.
 10. Delete completed tasks and verify deletion.
-11. Disconnect. Confirm refresh gives an actionable connect message and the provider token-cache file is removed.
+11. Disconnect. Confirm refresh gives an actionable connect message and the provider token cache is removed from Obsidian SecretStorage.
 12. Switch to Microsoft and back; verify each provider retains its own selected list while the visible task cache is cleared.
 
 ## Security checks

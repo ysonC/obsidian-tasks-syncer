@@ -1,12 +1,10 @@
 {
 	"id": "task-syncer-plugin",
 	"name": "Task Syncer",
-	"version": "2.0.1",
-	"minAppVersion": "0.15.0",
-	"description": "Sync tasks between Obsidian and other task management tools",
+	"version": "2.1.0",
+	"minAppVersion": "1.11.4",
+	"description": "Sync tasks with Microsoft To Do and TickTick.",
 	"author": "Wyson Cheng",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
-	"isDesktopOnly": true,
-	"css": "./styles.css"
+	"authorUrl": "https://github.com/ysonC",
+	"isDesktopOnly": true
 }

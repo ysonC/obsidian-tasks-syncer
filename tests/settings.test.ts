@@ -9,9 +9,10 @@ describe("settings migration", () => {
 			selectedTaskListId: "list-1", selectedTaskListTitle: "Inbox",
 			taskLists: [{ id: "list-1", title: "Inbox" }], showComplete: false,
 		});
-		expect(migrated.version).toBe(2);
+		expect(migrated.version).toBe(3);
 		expect(migrated.provider).toBe("microsoft");
-		expect(migrated.providers.microsoft).toMatchObject({ clientId: "old-id", clientSecret: "old-secret", redirectUrl: "http://localhost:5000", selectedListId: "list-1", selectedListTitle: "Inbox" });
+		expect(migrated.providers.microsoft).toMatchObject({ clientId: "old-id", clientSecretId: "task-syncer-plugin-microsoft-client-secret", redirectUrl: "http://localhost:5000", selectedListId: "list-1", selectedListTitle: "Inbox" });
+		expect(migrated.providers.microsoft).not.toHaveProperty("clientSecret");
 		expect(migrated.providers.microsoft.taskLists).toEqual([{ id: "list-1", title: "Inbox" }]);
 		expect(migrated.showCompleted).toBe(false);
 	});

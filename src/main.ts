@@ -1,18 +1,21 @@
 import { Plugin, TFile } from "obsidian";
 import * as path from "path";
-import { MyTodoSettingTab } from "./setting";
+import { TaskSyncerSettingTab } from "./setting";
 import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "./right-sidebar-view";
 import { TaskTitleModal } from "./task-title-modal";
 import { GenericSelectModal } from "./select-modal";
 import { notify } from "./utils";
-import { migrateSettings, TaskSyncerSettings } from "./settings-model";
+import { migrateSettings, TaskSyncerSettings, tokenCacheSecretId } from "./settings-model";
 import { createProviderRuntime, ProviderRuntime } from "./provider";
 import { ProviderId, TaskCache, TaskInputResult, TaskItem, TaskList, TaskService } from "./types";
-import { FileTokenStore } from "./auth";
+
 import { COMMAND_IDS } from "./commands";
 import { changeProviderCredential, changeTimeZone, SettingsEffects } from "./settings-actions";
 import { resolvePluginDirectory } from "./plugin-path";
 import { AutoSyncController } from "./auto-sync";
+import { migrateLegacyClientSecrets, migrateLegacyTokenFile, ObsidianSecretStorageApi, ObsidianSecretStore, SecretStore, SecretTokenStore } from "./secret-store";
+import { deleteCompletedTasksAndRefresh, deleteCompletedTasksWithConfirmation } from "./delete-completed";
+import { confirmCompletedTaskDeletion } from "./delete-confirmation-modal";
 
 export default class TaskSyncerPlugin extends Plugin {
 	settings: TaskSyncerSettings;
@@ -21,23 +24,25 @@ export default class TaskSyncerPlugin extends Plugin {
 	private runtime?: ProviderRuntime;
 	private pluginDirectory: string;
 	private autoSync: AutoSyncController;
+	private secretStore: SecretStore;
 	get api(): TaskService { return this.ensureRuntime().tasks; }
 	get providerSettings() { return this.settings.providers[this.settings.provider]; }
 
 	async onload(): Promise<void> {
 		const basePath = (this.app.vault.adapter as any).basePath;
 		this.pluginDirectory = resolvePluginDirectory(basePath, this.manifest.dir, this.manifest.id);
+		this.secretStore = new ObsidianSecretStore(this.app.secretStorage as unknown as ObsidianSecretStorageApi);
 		await this.loadSettings();
 		this.autoSync = new AutoSyncController(
 			() => this.refreshViewAndCache(),
 			() => Boolean(this.providerSettings.selectedListId),
-			error => console.warn("Automatic task refresh failed:", error instanceof Error ? error.message : error),
+			() => undefined,
 			{
 				setInterval: (callback, milliseconds) => this.registerInterval(window.setInterval(callback, milliseconds)),
 				clearInterval: id => window.clearInterval(id),
 			},
 		);
-		this.addSettingTab(new MyTodoSettingTab(this.app, this));
+		this.addSettingTab(new TaskSyncerSettingTab(this.app, this));
 		this.registerView(VIEW_TYPE_TODO_SIDEBAR, leaf => { const view = new TaskSidebarView(leaf, this); this.sidebarView = view; return view; });
 		this.initializeCommands();
 		this.configureAutoSync();
@@ -46,10 +51,20 @@ export default class TaskSyncerPlugin extends Plugin {
 		});
 	}
 	onunload(): void { this.autoSync?.stop(); }
-	ensureRuntime(): ProviderRuntime { if (!this.runtime || this.runtime.id !== this.settings.provider) this.runtime = createProviderRuntime(this.settings.provider, this.settings, this.pluginDirectory); return this.runtime; }
+	ensureRuntime(): ProviderRuntime { if (!this.runtime || this.runtime.id !== this.settings.provider) this.runtime = createProviderRuntime(this.settings.provider, this.settings, this.secretStore); return this.runtime; }
 	async rebuildRuntime() { this.runtime = undefined; this.taskCache = null; }
 	async switchProvider(provider: ProviderId) { if (provider === this.settings.provider) return; this.settings.provider = provider; await this.rebuildRuntime(); await this.saveSettings(); if (this.sidebarView) await this.sidebarView.render(); }
-	async loadSettings() { this.settings = migrateSettings(await this.loadData()); await this.saveData(this.settings); }
+	async loadSettings() {
+		const raw = await this.loadData();
+		this.settings = migrateSettings(raw);
+		await migrateLegacyClientSecrets(raw, this.settings, this.secretStore, () => this.saveData(this.settings));
+		for (const provider of ["microsoft", "ticktick"] as const) {
+			const tokens = new SecretTokenStore(this.secretStore, tokenCacheSecretId(provider));
+			await migrateLegacyTokenFile(path.join(this.pluginDirectory, `${provider}-token-cache.json`), tokens);
+			if (provider === "microsoft") await migrateLegacyTokenFile(path.join(this.pluginDirectory, "token_cache.json"), tokens);
+		}
+		await this.saveData(this.settings);
+	}
 	async saveSettings() { await this.saveData(this.settings); }
 
 	reportError(action: string, error: unknown) { const message = error instanceof Error ? error.message : String(error); console.error(`${action}:`, message); notify(message, "error"); }
@@ -57,6 +72,7 @@ export default class TaskSyncerPlugin extends Plugin {
 	private settingsEffects(): SettingsEffects {
 		return {
 			logout: () => this.invalidateCurrentProviderAuth(),
+
 			rebuild: () => this.rebuildRuntime(),
 			save: () => this.saveSettings(),
 			refresh: () => this.refreshSidebar(),
@@ -66,12 +82,11 @@ export default class TaskSyncerPlugin extends Plugin {
 		try {
 			if (this.runtime?.id === this.settings.provider) await this.runtime.auth.logout();
 		} finally {
-			await new FileTokenStore(path.join(this.pluginDirectory, `${this.settings.provider}-token-cache.json`)).remove();
-			if (this.settings.provider === "microsoft") await new FileTokenStore(path.join(this.pluginDirectory, "token_cache.json")).remove();
+			await new SecretTokenStore(this.secretStore, tokenCacheSecretId(this.settings.provider)).remove();
 			this.taskCache = null;
 		}
 	}
-	async updateProviderCredential(key: "clientId" | "clientSecret" | "redirectUrl", value: string) {
+	async updateProviderCredential(key: "clientId" | "clientSecretId" | "redirectUrl", value: string) {
 		await changeProviderCredential(this.settings, key, value, this.settingsEffects());
 	}
 	async updateTimeZone(value: string) { await changeTimeZone(this.settings, value, this.settingsEffects()); }
@@ -89,17 +104,17 @@ export default class TaskSyncerPlugin extends Plugin {
 	async disconnectCurrentProvider() { await this.ensureRuntime().auth.logout(); this.taskCache = null; notify(`${this.settings.provider} disconnected.`, "success"); await this.refreshSidebar(); }
 	private async runCommand(action: string, work: () => void | Promise<void>) { try { await work(); } catch (error) { this.reportError(action, error); } }
 	private initializeCommands() {
-		this.addCommand({ id: COMMAND_IDS.openSidebar, name: "Open Task Sidebar", callback: () => this.runCommand("Open sidebar failed", () => this.activateSidebar()) });
-		this.addCommand({ id: COMMAND_IDS.connectProvider, name: "Connect Current Task Provider", callback: () => this.runCommand("Connect failed", () => this.connectCurrentProvider()) });
-		this.addCommand({ id: COMMAND_IDS.disconnectProvider, name: "Disconnect Current Task Provider", callback: () => this.runCommand("Disconnect failed", () => this.disconnectCurrentProvider()) });
-		this.addCommand({ id: COMMAND_IDS.loadTaskLists, name: "Load Task Lists", callback: () => this.loadAvailableTaskLists() });
-		this.addCommand({ id: COMMAND_IDS.selectTaskList, name: "Select Task List", callback: () => this.runCommand("Select list failed", () => this.openTaskListsModal()) });
-		this.addCommand({ id: COMMAND_IDS.refreshTasks, name: "Refresh Tasks", callback: () => this.runCommand("Refresh failed", () => this.refreshViewAndCache()) });
-		this.addCommand({ id: COMMAND_IDS.pushAllTasks, name: "Push All Tasks from Note", callback: async () => { try { const count = await this.pushTasksFromNote(); notify(`${count} new tasks added.`, "success"); await this.refreshViewAndCache(); } catch (e) { this.reportError("Push failed", e); } } });
-		this.addCommand({ id: COMMAND_IDS.pushOneTask, name: "Create and Push Task", callback: () => this.runCommand("Create task failed", () => this.openPushTaskModal()) });
-		this.addCommand({ id: COMMAND_IDS.showOpenTasks, name: "Show Open Tasks List", callback: () => this.runCommand("Show tasks failed", () => this.openTaskCompleteModal()) });
-		this.addCommand({ id: COMMAND_IDS.organizeTasks, name: "Organize Tasks from All Notes", callback: async () => { try { await this.gatherTasks(); notify("Tasks organized.", "success"); } catch (e) { this.reportError("Organize failed", e); } } });
-		this.addCommand({ id: COMMAND_IDS.deleteCompletedTasks, name: "Delete Completed Tasks", callback: async () => { try { const count = await this.deleteAllCompletedTasks(); notify(`${count} completed tasks deleted.`, "success"); } catch (e) { this.reportError("Delete failed", e); } } });
+		this.addCommand({ id: COMMAND_IDS.openSidebar, name: "Open task sidebar", callback: () => this.runCommand("Open sidebar failed", () => this.activateSidebar()) });
+		this.addCommand({ id: COMMAND_IDS.connectProvider, name: "Connect current task provider", callback: () => this.runCommand("Connect failed", () => this.connectCurrentProvider()) });
+		this.addCommand({ id: COMMAND_IDS.disconnectProvider, name: "Disconnect current task provider", callback: () => this.runCommand("Disconnect failed", () => this.disconnectCurrentProvider()) });
+		this.addCommand({ id: COMMAND_IDS.loadTaskLists, name: "Load task lists", callback: () => this.loadAvailableTaskLists() });
+		this.addCommand({ id: COMMAND_IDS.selectTaskList, name: "Select task list", callback: () => this.runCommand("Select list failed", () => this.openTaskListsModal()) });
+		this.addCommand({ id: COMMAND_IDS.refreshTasks, name: "Refresh tasks", callback: () => this.runCommand("Refresh failed", () => this.refreshViewAndCache()) });
+		this.addCommand({ id: COMMAND_IDS.pushAllTasks, name: "Push all tasks from note", callback: async () => { try { const count = await this.pushTasksFromNote(); notify(`${count} new tasks added.`, "success"); await this.refreshViewAndCache(); } catch (e) { this.reportError("Push failed", e); } } });
+		this.addCommand({ id: COMMAND_IDS.pushOneTask, name: "Create and push task", callback: () => this.runCommand("Create task failed", () => this.openPushTaskModal()) });
+		this.addCommand({ id: COMMAND_IDS.showOpenTasks, name: "Show open tasks list", callback: () => this.runCommand("Show tasks failed", () => this.openTaskCompleteModal()) });
+		this.addCommand({ id: COMMAND_IDS.organizeTasks, name: "Organize tasks from all notes", callback: async () => { try { await this.gatherTasks(); notify("Tasks organized.", "success"); } catch (e) { this.reportError("Organize failed", e); } } });
+		this.addCommand({ id: COMMAND_IDS.deleteCompletedTasks, name: "Delete completed tasks", callback: async () => { try { const count = await this.deleteAllCompletedTasks(); if (count) notify(`${count} completed tasks deleted.`, "success"); } catch (e) { this.reportError("Delete failed", e); } } });
 	}
 	async activateSidebar() { const leaf = this.app.workspace.getRightLeaf(false); if (!leaf) return; await leaf.setViewState({ type: VIEW_TYPE_TODO_SIDEBAR, active: true }); this.app.workspace.revealLeaf(leaf); }
 	private requireListId() { const id = this.providerSettings.selectedListId; if (!id) throw new Error("Select a task list before syncing."); return id; }
@@ -121,6 +136,6 @@ export default class TaskSyncerPlugin extends Plugin {
 	async openTaskListsModal() { new GenericSelectModal<TaskList>(this.app, this.providerSettings.taskLists, item => item.title, async item => { this.providerSettings.selectedListId = item.id; this.providerSettings.selectedListTitle = item.title; this.taskCache = null; await this.saveSettings(); await this.refreshViewAndCache(); }).open(); }
 	async openTaskCompleteModal() { const listId = this.requireListId(); const open = (await this.getTasksFromSelectedList()).filter(t => t.status === "open"); new GenericSelectModal<TaskItem>(this.app, open, item => item.title, async item => { await this.api.completeTask(listId, item.id); await this.refreshViewAndCache(); }).open(); }
 	async refreshTaskCache(): Promise<TaskItem[]> { const listId = this.requireListId(); const tasks = await this.api.fetchTasks(listId, this.settings.showCompleted); this.taskCache = { provider: this.settings.provider, listId, tasks }; return tasks; }
-	async deleteAllCompletedTasks(): Promise<number> { const listId = this.requireListId(); const completed = (await this.api.fetchTasks(listId, true)).filter(t => t.status === "completed"); for (const task of completed) await this.api.deleteTask(listId, task.id); await this.refreshViewAndCache(); return completed.length; }
+	async deleteAllCompletedTasks(): Promise<number> { const listId = this.requireListId(); return deleteCompletedTasksAndRefresh(() => deleteCompletedTasksWithConfirmation(this.api, this.settings.provider, listId, this.providerSettings.selectedListTitle, details => confirmCompletedTaskDeletion(this.app, details)), () => this.refreshViewAndCache()); }
 	async refreshViewAndCache() { await this.refreshTaskCache(); if (this.sidebarView) await this.sidebarView.render(); }
 }
