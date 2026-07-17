@@ -1,6 +1,6 @@
 import { ItemView, setIcon, WorkspaceLeaf } from "obsidian";
-import type TaskSyncerPlugin from "src/main";
-import { notify, playConfetti } from "./utils";
+import type TaskSyncerPlugin from "./main";
+import { playConfetti } from "./utils";
 import { TaskItem, TaskInputResult } from "./types";
 import { TaskTitleModal } from "./task-title-modal";
 
@@ -8,332 +8,146 @@ export const VIEW_TYPE_TODO_SIDEBAR = "tasks-syncer-sidebar";
 
 export class TaskSidebarView extends ItemView {
 	plugin: TaskSyncerPlugin;
-	contentContainer: Element;
-	taskContainer: Element;
-	navContainer: Element;
+	contentContainer: HTMLElement;
+	taskContainer: HTMLElement;
 
 	constructor(leaf: WorkspaceLeaf, plugin: TaskSyncerPlugin) {
 		super(leaf);
 		this.plugin = plugin;
 	}
-
-	getViewType(): string {
-		return VIEW_TYPE_TODO_SIDEBAR;
-	}
-
-	getDisplayText(): string {
-		return "To-Do Tasks";
-	}
-
-	getIcon(): string {
-		return "list-todo";
-	}
+	getViewType() { return VIEW_TYPE_TODO_SIDEBAR; }
+	getDisplayText() { return "Task Syncer"; }
+	getIcon() { return "list-todo"; }
 
 	async onOpen() {
-		const viewContent = this.containerEl.querySelector(".view-content");
-		if (viewContent) {
-			this.contentContainer = viewContent.createDiv(
-				"tasks-syncer-content",
-			);
-		} else {
-			this.contentContainer = this.containerEl.createDiv(
-				"tasks-syncer-content",
-			);
-		}
-		const mainContainer = this.contentContainer;
-
+		const view = this.containerEl.querySelector(".view-content") as HTMLElement | null;
+		this.contentContainer = (view || this.containerEl).createDiv("tasks-syncer-content");
 		this.setupNavHeader();
-		this.taskContainer = mainContainer.createDiv("tasks-group");
-
-		this.getNewTasksRender(true);
+		this.taskContainer = this.contentContainer.createDiv("tasks-group");
+		await this.refresh(true);
 	}
 
-	/**
-	 * Setup nav header with refresh and toggle-completed buttons.
-	 */
-	private async setupNavHeader() {
-		const navContent = this.contentContainer.createDiv("nav-header");
-		const navButtons = navContent.createDiv({ cls: "nav-buttons" });
-
-		// Refresh button.
-		const refreshBtn = navButtons.createEl("a", {
-			cls: "nav-action-button",
-		});
-		setIcon(refreshBtn, "refresh-cw");
-		refreshBtn.title = "Refresh Tasks";
-		refreshBtn.onclick = async () => {
-			this.getNewTasksRender(true);
-		};
-
-		this.createToggleButton(
-			navButtons,
-			() => this.plugin.settings.showComplete,
-			() => this.flipSetting("showComplete"),
-			{ on: "eye-off", off: "eye" },
-			"Toggle Completed Tasks",
-		);
-		// Due‑date toggle
-		this.createToggleButton(
-			navButtons,
-			() => this.plugin.settings.showDueDate,
-			() => this.flipSetting("showDueDate"),
-			{ on: "calendar", off: "calendar-arrow-up" },
-			"Toggle Due Dates",
-		);
+	private setupNavHeader() {
+		const buttons = this.contentContainer.createDiv("nav-header").createDiv({ cls: "nav-buttons" });
+		const refresh = buttons.createEl("a", { cls: "nav-action-button" });
+		setIcon(refresh, "refresh-cw");
+		refresh.title = "Refresh tasks";
+		refresh.onclick = () => this.refresh(true);
+		this.toggle(buttons, "showCompleted", { on: "eye-off", off: "eye" }, "Toggle completed tasks");
+		this.toggle(buttons, "showDueDate", { on: "calendar", off: "calendar-arrow-up" }, "Toggle due dates");
 	}
 
-	/**
-	 * Render function which always loads tasks from the plugin cache.
-	 * @param showCompleted Whether to display completed tasks.
-	 */
-	async render() {
-		const showCompleted = this.plugin.settings.showComplete;
-		const showDueDate = this.plugin.settings.showDueDate;
-		const container = this.taskContainer;
-		container.empty();
-
-		container.createEl("h4", {
-			text: this.plugin.settings.selectedTaskListTitle,
-		});
-
-		const tasksArray =
-			this.plugin.taskCache?.tasks ?? ([] as [string, TaskItem][]);
-		if (tasksArray.length === 0) {
-			container.createEl("p", { text: "No tasks found" });
-			return;
-		}
-
-		const tasks = tasksArray.map(([_, task]) => task);
-
-		let filteredTasks = this.sortDueDate(showDueDate, tasks);
-		filteredTasks = tasks
-			.filter((task) => showCompleted || task.status !== "completed")
-			.sort((a, b) => {
-				if (a.status === "completed" && b.status !== "completed")
-					return 1;
-				if (a.status !== "completed" && b.status === "completed")
-					return -1;
-				return 0;
-			});
-
-		filteredTasks.forEach((task) => {
-			this.renderTaskLine(task);
-		});
-	}
-
-	/**
-	 * Refresh task and show animation.
-	 * @param spin Show spin animation or not
-	 */
-	private async getNewTasksRender(spin: boolean) {
-		let wrapper: HTMLElement | null = null;
-
-		if (spin) {
-			const container = this.taskContainer;
-			container.empty();
-			wrapper = container.createDiv({ cls: "spinner-wrapper" });
-			wrapper.createDiv({ cls: "loading-spinner" });
-			wrapper.createEl("div", { text: "Loading tasks…" });
-		}
-
-		try {
-			await this.plugin.refreshTaskCache();
-		} catch (error) {
-			console.error("Error refreshing tasks: ", error);
-			notify("Failed to refresh tasks", "error");
-		} finally {
-			if (wrapper) wrapper.remove();
-			this.render();
-		}
-	}
-
-	/**
-	 * Render a single task line.
-	 */
-	renderTaskLine(task: TaskItem) {
-		const line = this.taskContainer.createEl("div", { cls: "task-line" });
-		const checkbox = line.createEl("input", {
-			type: "checkbox",
-		}) as HTMLInputElement;
-
-		checkbox.checked = task.status === "completed";
-		const detailsContainer = line.createEl("div", { cls: "task-details" });
-
-		detailsContainer.createEl("div", {
-			cls: "task-title",
-			text: task.title,
-		});
-
-		const dueDate = task.dueDateTime?.dateTime
-			? task.dueDateTime.dateTime.split("T")[0]
-			: "";
-
-		detailsContainer.createEl(
-			"div",
-			this.formatDueDate(dueDate, task.status),
-		);
-
-		detailsContainer.addEventListener("dblclick", async () => {
-			await this.handleTaskEdit(task, dueDate);
-		});
-		checkbox.addEventListener("change", async (event) => {
-			await this.handleTaskStatusChange(event, task, checkbox);
-		});
-	}
-
-	/**
-	 * Show pop up to edit task using api function
-	 */
-	async handleTaskEdit(task: TaskItem, dueDate: string) {
-		new TaskTitleModal(
-			this.app,
-			async (result: TaskInputResult) => {
-				try {
-					await this.plugin.api.updateTask(task.id, {
-						title: result.title,
-						dueDate: result.dueDate,
-						status: false,
-					});
-					this.getNewTasksRender(false);
-					console.log("Edit task complete");
-				} catch (error) {
-					console.error("Error pushing tasks:", error);
-					notify(
-						"Error pushing tasks. Check the console for details.",
-						"error",
-					);
-				}
-			},
-			{ title: task.title, dueDate: dueDate },
-		).open();
-	}
-
-	/**
-	 * Handle the checkbox change event for a task.
-	 */
-	async handleTaskStatusChange(
-		event: Event,
-		task: TaskItem,
-		checkbox: HTMLInputElement,
-	) {
-		checkbox.disabled = true;
-		const target = event.target as HTMLInputElement;
-		const newCompletedState = target.checked;
-		if (newCompletedState) this.runConfettiAnimation("regular");
-
-		try {
-			await this.plugin.api.updateTask(task.id, {
-				status: newCompletedState,
-			});
-
-			task.status = newCompletedState ? "completed" : "notstarted";
-			const refreshedTasks = await this.plugin.refreshTaskCache();
-			if (
-				Array.from(refreshedTasks.values()).every(
-					(task) => task.status === "completed",
-				)
-			)
-				this.runConfettiAnimation(this.plugin.settings.confettiType);
-			this.getNewTasksRender(false);
-		} catch (error) {
-			console.error("Error updating task with checkbox:", error);
-			notify("Failed to update task", "error");
-			target.checked = !newCompletedState;
-		} finally {
-			checkbox.disabled = false;
-		}
-	}
-
-	/**
-	 * Toggle the setting for showing completed tasks.
-	 */
-	async flipSetting<K extends keyof TaskSyncerPlugin["settings"]>(key: K) {
-		// @ts-expect-error
-		this.plugin.settings[key] = !this.plugin.settings[key];
-		await this.plugin.saveSettings();
-	}
-
-	/**
-	 * Sort due date base on the closest to today
-	 * @param show A boolean to show (true) or not (false)
-	 * @param tasks The entire task items
-	 */
-	sortDueDate(show: boolean, tasks: TaskItem[]): TaskItem[] {
-		if (!show) return tasks;
-		tasks.sort((a, b) => {
-			if (a.dueDateTime === undefined && b.dueDateTime === undefined) {
-				return 0;
-			}
-
-			if (a.dueDateTime === undefined) {
-				return 1;
-			}
-
-			if (b.dueDateTime === undefined) {
-				return -1;
-			}
-
-			const dateA = new Date(a.dueDateTime.dateTime);
-			const dateB = new Date(b.dueDateTime.dateTime);
-			return dateA.getTime() - dateB.getTime();
-		});
-		return tasks;
-	}
-
-	/**
-	 * Format due date into cls format for today, tomorrow, and other.
-	 * @param date The date to convert.
-	 */
-	private formatDueDate(
-		date: string,
-		status: string,
-	): { text: string; cls: string } {
-		const iso = new Date().toISOString().slice(0, 10);
-		const tomorrow = new Date();
-		tomorrow.setDate(tomorrow.getDate() + 1);
-		const tomIso = tomorrow.toISOString().slice(0, 10);
-
-		if (status === "completed") return { text: date, cls: "task-due-date" };
-
-		if (date === iso) {
-			return { text: "Today", cls: "task-due-date-now" };
-		} else if (date === tomIso) {
-			return { text: "Tomorrow", cls: "task-due-date-tomorrow" };
-		} else if (date && date < iso) {
-			return { text: "Past Due", cls: "task-due-date-past" };
-		} else return { text: date, cls: "task-due-date" };
-	}
-
-	/**
-	 * Create toggle button
-	 */
-	private createToggleButton(
+	private toggle(
 		parent: HTMLElement,
-		getState: () => boolean,
-		flipState: () => Promise<void>,
+		key: "showCompleted" | "showDueDate",
 		icons: { on: string; off: string },
 		title: string,
-	): HTMLAnchorElement {
-		const btn = parent.createEl("a", { cls: "nav-action-button" });
-		btn.title = title;
-
-		const updateIcon = () => {
-			setIcon(btn, getState() ? icons.off : icons.on);
-		};
-
+	) {
+		const button = parent.createEl("a", { cls: "nav-action-button" });
+		button.title = title;
+		const updateIcon = () => setIcon(button, this.plugin.settings[key] ? icons.off : icons.on);
 		updateIcon();
-
-		btn.onclick = async () => {
-			await flipState();
-			updateIcon();
-			this.getNewTasksRender(true);
+		button.onclick = async () => {
+			try {
+				this.plugin.settings[key] = !this.plugin.settings[key];
+				if (key === "showCompleted") this.plugin.taskCache = null;
+				await this.plugin.saveSettings();
+				updateIcon();
+				await this.refresh(key === "showCompleted");
+			} catch (error) {
+				this.plugin.reportError("Sidebar setting update failed", error);
+			}
 		};
-
-		return btn;
 	}
 
-	private runConfettiAnimation(type: string) {
-		if (this.plugin.settings.enableConfetti) playConfetti(type);
+	async render() {
+		if (!this.taskContainer) return;
+		this.taskContainer.empty();
+		this.taskContainer.createEl("h4", { text: this.plugin.providerSettings.selectedListTitle || "No task list selected" });
+		const tasks = this.plugin.taskCache?.tasks || [];
+		const visible = tasks
+			.filter(task => this.plugin.settings.showCompleted || task.status === "open")
+			.slice()
+			.sort((a, b) => {
+				if (a.status !== b.status) return a.status === "completed" ? 1 : -1;
+				if (!this.plugin.settings.showDueDate) return 0;
+				return (a.dueDate || "9999").localeCompare(b.dueDate || "9999");
+			});
+		if (!visible.length) {
+			this.taskContainer.createEl("p", { text: "No tasks found" });
+			return;
+		}
+		visible.forEach(task => this.renderTask(task));
+	}
+
+	private renderTask(task: TaskItem) {
+		const line = this.taskContainer.createEl("div", { cls: "task-line" });
+		const checkbox = line.createEl("input", { type: "checkbox" }) as HTMLInputElement;
+		checkbox.checked = task.status === "completed";
+		const canReopen = this.plugin.api.capabilities.reopenTask && !!this.plugin.api.reopenTask;
+		if (checkbox.checked && !canReopen) {
+			checkbox.disabled = true;
+			checkbox.title = "TickTick's Open API does not support reopening completed tasks.";
+		}
+		const details = line.createDiv("task-details");
+		details.createDiv({ cls: "task-title", text: task.title });
+		details.createDiv(this.formatDueDate(task.dueDate?.slice(0, 10) || "", task.status));
+		details.addEventListener("dblclick", () => this.editTask(task));
+		checkbox.addEventListener("change", async () => {
+			checkbox.disabled = true;
+			try {
+				if (checkbox.checked) {
+					await this.plugin.api.completeTask(task.listId, task.id);
+					if (this.plugin.settings.enableConfetti) playConfetti(this.plugin.settings.confettiType);
+				} else if (this.plugin.api.reopenTask) {
+					await this.plugin.api.reopenTask(task.listId, task.id);
+				} else {
+					throw new Error("This provider cannot reopen completed tasks.");
+				}
+				await this.refresh(false);
+			} catch (error) {
+				checkbox.checked = !checkbox.checked;
+				this.plugin.reportError("Task status update failed", error);
+			} finally {
+				if (!checkbox.checked || canReopen) checkbox.disabled = false;
+			}
+		});
+	}
+
+	private editTask(task: TaskItem) {
+		new TaskTitleModal(this.app, async (result: TaskInputResult) => {
+			try {
+				await this.plugin.api.updateTask(task.listId, task.id, { title: result.title, dueDate: result.dueDate });
+				await this.refresh(false);
+			} catch (error) {
+				this.plugin.reportError("Task edit failed", error);
+			}
+		}, { title: task.title, dueDate: task.dueDate }).open();
+	}
+
+	private async refresh(spin: boolean) {
+		let wrapper: HTMLElement | undefined;
+		if (spin && this.taskContainer) {
+			this.taskContainer.empty();
+			wrapper = this.taskContainer.createDiv("spinner-wrapper");
+			wrapper.createDiv("loading-spinner");
+		}
+		try { await this.plugin.refreshTaskCache(); }
+		catch (error) { this.plugin.reportError("Task refresh failed", error); }
+		finally { wrapper?.remove(); await this.render(); }
+	}
+
+	private formatDueDate(date: string, status: string) {
+		if (!this.plugin.settings.showDueDate) return { text: "", cls: "task-due-date" };
+		const today = new Date().toISOString().slice(0, 10);
+		const next = new Date();
+		next.setDate(next.getDate() + 1);
+		const tomorrow = next.toISOString().slice(0, 10);
+		if (status === "completed") return { text: date, cls: "task-due-date" };
+		if (date === today) return { text: "Today", cls: "task-due-date-now" };
+		if (date === tomorrow) return { text: "Tomorrow", cls: "task-due-date-tomorrow" };
+		if (date && date < today) return { text: "Past Due", cls: "task-due-date-past" };
+		return { text: date, cls: "task-due-date" };
 	}
 
 	async onClose() {}

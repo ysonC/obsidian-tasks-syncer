@@ -1,6 +1,13 @@
 import { Modal, App } from "obsidian";
 import { TaskInputResult } from "./types";
 
+export function buildTaskInputResult(title: string, date: string, editing: boolean): TaskInputResult {
+	const result: TaskInputResult = { title: title.trim() };
+	if (date) result.dueDate = `${date}T00:00:00`;
+	else if (editing) result.dueDate = "";
+	return result;
+}
+
 /**
  * A simple modal that prompts the user to enter a task title.
  * The modal is centered, and the task is submitted when the user presses Enter.
@@ -59,12 +66,8 @@ export class TaskTitleModal extends Modal {
 			if (e.key === "Enter") {
 				e.preventDefault();
 				e.stopPropagation();
-				const title = inputEl.value.trim();
-				const dueDate = dueInput.value
-					? `${dueInput.value}T00:00:00`
-					: undefined;
 				this.close();
-				this.onSubmit({ title, dueDate });
+				this.onSubmit(buildTaskInputResult(inputEl.value, dueInput.value, this.initial !== undefined));
 			}
 		};
 	}

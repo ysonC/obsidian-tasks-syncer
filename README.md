@@ -1,101 +1,59 @@
-# Task Syncer Plugin for Obsidian
+# Task Syncer for Obsidian
 
-This Obsidian plugin syncs tasks between Obsidian notes and Microsoft To-Do. You can easily manage your Microsoft To-Do tasks directly from Obsidian.
+Task Syncer connects an Obsidian desktop vault to **Microsoft To Do** or **TickTick**. The sidebar and commands use one selected provider and list at a time.
 
 ## Features
 
-- Sync tasks from Obsidian notes directly into Microsoft To-Do.
-- Mark tasks as complete directly from Obsidian.
-- Sidebar integration for showing current targeted list's task.
+- Load provider lists and select a target list.
+- View open and optionally completed tasks in a sidebar.
+- Create, edit, complete, and delete tasks.
+- Push Markdown checkboxes from the active note.
+- Keep a canonical in-memory `TaskItem[]` cache keyed by provider/list; title matching is used only temporarily to deduplicate note pushes.
 
-## Using the Plugin
+## Commands
 
-### Commands
+Commands are provider-neutral: **Connect Current Task Provider**, **Disconnect Current Task Provider**, **Load Task Lists**, **Select Task List**, **Refresh Tasks**, **Push All Tasks from Note**, **Create and Push Task**, **Show Open Tasks List**, and **Delete Completed Tasks**. Switching provider clears the task cache.
 
-- **Open Microsoft To-Do Sidebar**: View your tasks directly.
-- **Login to Microsoft To-Do**: Authenticate your Microsoft account.
-- **Refresh Microsoft To-Do Token**: Refresh authentication manually.
-- **Push All Tasks from Note**: Sync tasks from your active note.
-- **Create and Push Task**: Add a single task directly.
-- **Show Not Started Tasks List**: To mark tasks as completed.
-- **Select Task List**: Change the target list in Microsoft To-Do.
-- **Delete Completed Tasks**: Remove all completed tasks in the targeted list.
+## Provider setup
 
----
+### Microsoft To Do
 
-## Supported Platforms
+Register a Microsoft application with delegated `Tasks.ReadWrite` permission and configure its client ID, client secret, and exact redirect URL in Task Syncer settings. Existing pre-v2 flat Microsoft settings migrate automatically, including credentials and selected list.
 
-- **Microsoft To-Do** (more integrations coming soon!)
+### TickTick
 
----
+1. Create a TickTick OAuth application.
+2. Register the exact redirect URL you will enter in plugin settings.
+3. Configure the client ID and client secret.
+4. Request scopes `tasks:read tasks:write`.
+5. Select TickTick, click **Connect**, then **Load lists** and choose a list.
 
-## Setup
+TickTick uses the official authorization-code endpoints (`https://ticktick.com/oauth/authorize` and `/oauth/token`) and Open API base `https://api.ticktick.com/open/v1`. OAuth runs in an isolated Electron `BrowserWindow`, uses a cryptographically random state, and requires an exact redirect match. Token exchanges are form encoded with HTTP Basic client authentication. Tokens are held in a dedicated provider cache and are never logged.
 
-### Prerequisites
+## Important limitations
 
-You'll need an Azure AD Application set up to integrate with Microsoft To-Do:
-
-1. Go to the [Azure Portal](https://portal.azure.com).
-2. Click on **Azure Active Directory** → **App registrations** → **New registration**.
-3. Enter a name (e.g., "Obsidian Task Syncer").
-4. Set **Supported account types** to **Accounts in any organizational directory and personal Microsoft accounts**.
-5. Set **Redirect URI** to `http://localhost:5000` and select type **Web**.
-6. Click **Register**.
-7. After registration, note down the **Application (client) ID**.
-
-### Get Client Secret
-
-1. From your app registration, go to **Certificates & secrets**.
-2. Click **New client secret**.
-3. Add a description and set expiration to your preference.
-4. After creation, copy and save your **client secret** securely.
-
----
-
-## Plugin Installation
-
-1. Clone this repository into your Obsidian plugins folder:
-
-```bash
-git clone https://github.com/your-username/task-syncer-plugin.git
-```
-
-2. Install dependencies:
-
-```bash
-npm install
-```
-
-3. Build the plugin:
-
-```bash
-npm run build
-```
-
-4. In Obsidian, enable the plugin under **Settings → Community plugins**.
-
----
-
-## Configuration
-
-After installation:
-
-1. Open Obsidian **Settings**.
-2. Navigate to **Microsoft To-Do Settings** tab.
-3. Enter your **Client ID**, **Client Secret**, and **Redirect URL** (`http://localhost:5000`).
-4. Reload the plugin.
-5. Click **Get Task Lists** to fetch your available Microsoft To-Do lists.
-6. Select the task list you want to sync with.
-
----
+- Desktop only: OAuth depends on Electron `BrowserWindow`.
+- A desktop plugin cannot fully protect a configured OAuth client secret. Use credentials intended for a local desktop installation and understand this limitation.
+- TickTick does not guarantee a refresh token for this flow. The plugin does not assume one; when a token expires or the API returns 401, reconnect from the command/settings UI.
+- TickTick's documented Open API has no reopen operation. Completed TickTick checkboxes are disabled. Microsoft tasks can be reopened.
+- No tags, repeats, reminders, subtasks, habits, focus mode, or background sync.
 
 ## Development
 
-- `npm run dev`: Runs the plugin in development mode.
-- Changes to `.ts` files will automatically rebuild.
+```bash
+npm install
+npm test          # isolated Vitest unit tests; no real API or vault data
+npm run test:watch
+npm run build     # TypeScript check + production bundle
+npm run check     # tests + build
+```
 
----
+Tests mock network/provider boundaries and never use real credentials or user data. See [TickTick smoke test](docs/testing/ticktick-smoke-test.md) for an opt-in manual check.
+
+## Markdown behavior
+
+`Push All Tasks from Note` reads `- [ ]` and `- [x]` lines. For that operation only, titles are trimmed, whitespace-collapsed, and case-normalized to avoid duplicate remote tasks. Remote storage and the cache remain ID-based, so tasks with duplicate titles returned by a provider are preserved.
 
 ## License
 
-[MIT License](LICENSE)
+[MIT](LICENSE)

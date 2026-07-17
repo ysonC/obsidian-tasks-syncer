@@ -1,673 +1,99 @@
 import { Plugin, TFile } from "obsidian";
-import * as fs from "fs";
-import * as dotenv from "dotenv";
 import * as path from "path";
-import { MyTodoSettingTab, DEFAULT_SETTINGS, MyTodoSettings } from "./setting";
+import { MyTodoSettingTab } from "./setting";
 import { VIEW_TYPE_TODO_SIDEBAR, TaskSidebarView } from "./right-sidebar-view";
-import { AuthManager } from "./auth";
 import { TaskTitleModal } from "./task-title-modal";
 import { GenericSelectModal } from "./select-modal";
 import { notify } from "./utils";
-import { TaskCache, TaskInputResult, TaskItem, TaskList } from "./types";
-import { MicrosoftTaskService } from "./services/microsoft";
+import { migrateSettings, TaskSyncerSettings } from "./settings-model";
+import { createProviderRuntime, ProviderRuntime } from "./provider";
+import { ProviderId, TaskCache, TaskInputResult, TaskItem, TaskList, TaskService } from "./types";
+import { FileTokenStore } from "./auth";
+import { COMMAND_IDS } from "./commands";
+import { changeProviderCredential, changeTimeZone, SettingsEffects } from "./settings-actions";
 
-/**
- * Main plugin class for syncing tasks between Obsidian and Task manager.
- */
 export default class TaskSyncerPlugin extends Plugin {
-	settings: MyTodoSettings;
+	settings: TaskSyncerSettings;
 	sidebarView: TaskSidebarView | null = null;
-	tokenFilePath: string;
-	authManager: AuthManager;
 	taskCache: TaskCache | null = null;
-	api: MicrosoftTaskService;
+	private runtime?: ProviderRuntime;
+	private pluginDirectory: string;
+	get api(): TaskService { return this.ensureRuntime().tasks; }
+	get providerSettings() { return this.settings.providers[this.settings.provider]; }
 
-	/**
-	 * Called when the plugin is activated.
-	 * Loads environment variables, settings, registers views and commands, and initializes authentication.
-	 */
 	async onload(): Promise<void> {
-		// 0. Load environment variables from the plugin's .env file.
 		const basePath = (this.app.vault.adapter as any).basePath;
-		const pluginPath = path.join(
-			basePath,
-			".obsidian/plugins/obsidian-tasks-syncer",
-		);
-		dotenv.config({ path: path.join(pluginPath, ".env"), override: true });
-
-		// 1. Load stored settings (or default settings if none exist).
+		this.pluginDirectory = path.join(basePath, ".obsidian", "plugins", this.manifest.id);
 		await this.loadSettings();
-
-		// 2. Add the settings tab.
 		this.addSettingTab(new MyTodoSettingTab(this.app, this));
-
-		// 3. Register the sidebar view.
-		this.registerView(VIEW_TYPE_TODO_SIDEBAR, (leaf) => {
-			const view = new TaskSidebarView(leaf, this);
-			this.sidebarView = view;
-			return view;
-		});
-
-		// 4. Initialize core components (MSAL client, commands, etc.).
-		this.initializeCommand();
-
-		// 5. Initialize the MSAL client
-		this.tokenFilePath = `${pluginPath}/token_cache.json`;
-		if (this.settings.clientId && this.settings.clientSecret) {
-			this.authManager = new AuthManager(
-				this.settings.clientId,
-				this.settings.clientSecret,
-				this.settings.redirectUrl,
-				this.tokenFilePath,
-			);
-		}
-
-		// 6. Set up the token cache.
-		if (fs.existsSync(this.tokenFilePath)) {
-			const cacheData = fs.readFileSync(this.tokenFilePath, "utf8");
-			this.authManager.cca.getTokenCache().deserialize(cacheData);
-			console.log("Token cache loaded from file.");
-		}
-
-		// 7. Set up api base on selection in setting
-		const service = this.settings.selectedService;
-		switch (service) {
-			case "microsoft":
-				this.api = new MicrosoftTaskService(this);
-				break;
-			default:
-				notify("Please select a service to sync in setting!", "info");
-				break;
-		}
+		this.registerView(VIEW_TYPE_TODO_SIDEBAR, leaf => { const view = new TaskSidebarView(leaf, this); this.sidebarView = view; return view; });
+		this.initializeCommands();
 	}
+	ensureRuntime(): ProviderRuntime { if (!this.runtime || this.runtime.id !== this.settings.provider) this.runtime = createProviderRuntime(this.settings.provider, this.settings, this.pluginDirectory); return this.runtime; }
+	async rebuildRuntime() { this.runtime = undefined; this.taskCache = null; }
+	async switchProvider(provider: ProviderId) { if (provider === this.settings.provider) return; this.settings.provider = provider; await this.rebuildRuntime(); await this.saveSettings(); if (this.sidebarView) await this.sidebarView.render(); }
+	async loadSettings() { this.settings = migrateSettings(await this.loadData()); await this.saveData(this.settings); }
+	async saveSettings() { await this.saveData(this.settings); }
 
-	/**
-	 * Initializes the MSAL client and registers commands/ribbon icons.
-	 */
-	initializeCommand(): void {
-		// Register command to open the sidebar.
-		this.addCommand({
-			id: "open-todo-sidebar",
-			name: "Open To-Do Sidebar",
-			callback: async () => {
-				this.activateSidebar();
-			},
-		});
-
-		// Register interactive login command.
-		this.addCommand({
-			id: "login-task-manager",
-			name: "Login to task manager (Interactive)",
-			callback: async () => {
-				try {
-					notify("Logging in...");
-					await this.authManager.getAccessToken();
-					notify("Logged in successfully!", "success");
-				} catch (error) {
-					console.error("Authentication error:", error);
-					notify(
-						"Error logining in! Check the console for details.",
-						"error",
-					);
-				}
-			},
-		});
-
-		// Register token refresh command.
-		this.addCommand({
-			id: "refresh-task-manager-token",
-			name: "Refresh Task Manager Token",
-			callback: async () => {
-				try {
-					const tokenData =
-						await this.authManager.refreshAccessTokenWithCCA();
-					notify("Token refreshed successfully!", "success");
-					console.log("New Access Token:", tokenData.accessToken);
-				} catch (error) {
-					console.error("Error refreshing token:", error);
-					notify(
-						"Error refreshing token. Check the console for details.",
-						"error",
-					);
-				}
-			},
-		});
-
-		// Register command to fetch task from selected list.
-		this.addCommand({
-			id: "get-tasks-from-selected-list",
-			name: "Get Tasks from Selected List",
-			callback: async () => {
-				try {
-					notify("Fetching tasks...");
-					await this.getTasksFromSelectedList();
-					notify("Tasks fetched successfully!", "success");
-				} catch (error) {
-					console.error(
-						"Error fetching tasks from selected list:",
-						error,
-					);
-					notify(
-						"Error fetching tasks. Check the console for details.",
-						"error",
-					);
-				}
-			},
-		});
-
-		// Register command to sync task lists for the current note.
-		this.addCommand({
-			id: "push-all-tasks-from-note",
-			name: "Push All Tasks from Note",
-			callback: async () => {
-				try {
-					notify("Syncing tasks ...");
-					const tasksCount = await this.pushTasksFromNote();
-					notify(
-						`Tasks synced successfully! ${tasksCount} new tasks added.`,
-						"success",
-					);
-					await this.refreshViewAndCache();
-				} catch (error) {
-					console.error("Error pushing tasks:", error);
-					notify(
-						"Error pushing tasks. Check the console for details.",
-						"error",
-					);
-				}
-			},
-		});
-
-		this.addCommand({
-			id: "push-one-task",
-			name: "Create and push Task",
-			callback: async () => {
-				try {
-					await this.openPushTaskModal();
-				} catch (error) {
-					console.error("Error opening push task modal: ", error);
-					notify(
-						"Error opening push task modal. Check the console for details.",
-						"error",
-					);
-				}
-			},
-		});
-
-		this.addCommand({
-			id: "show-not-started-tasks",
-			name: "Show Tasks List",
-			callback: async () => {
-				try {
-					await this.openTaskCompleteModal();
-				} catch (error) {
-					console.error("Error completing task:", error);
-					notify(
-						"Error completing task. Check the console for details.",
-						"error",
-					);
-				}
-			},
-		});
-
-		this.addCommand({
-			id: "select-task-list",
-			name: "Select Task List",
-			callback: async () => {
-				try {
-					await this.openTaskListsModal();
-				} catch (error) {
-					console.error("Error selecting task list:", error);
-					notify(
-						"Error selecting task list. Check the console for details.",
-						"error",
-					);
-				}
-			},
-		});
-
-		this.addCommand({
-			id: "organize-tasks",
-			name: "Organize Tasks from All Notes",
-			callback: async () => {
-				try {
-					await this.gatherTasks();
-					notify("Tasks organized successfully!", "success");
-				} catch (error) {
-					console.error("Error organizing tasks:", error);
-					notify(
-						"Error organizing tasks. Check the console for details.",
-						"error",
-					);
-				}
-			},
-		});
-
-		this.addCommand({
-			id: "delete-completed-tasks",
-			name: "Delete Completed Tasks",
-			callback: async () => {
-				try {
-					notify("Deleting completed tasks...");
-					const deletedCount = await this.deleteAllCompletedTasks();
-					notify(
-						`${deletedCount} completed tasks deleted successfully!`,
-						"success",
-					);
-				} catch (error) {
-					console.error("Error deleting completed tasks:", error);
-					notify(
-						"Error deleting tasks. Check the console for details.",
-						"error",
-					);
-				}
-			},
-		});
-
-		this.addCommand({
-			id: "testing",
-			name: "Testing",
-			callback: async () => {
-				try {
-					console.log("Testing update time zone");
-					notify("Testing...", "success");
-				} catch (error) {
-					console.error("Error testing:", error);
-				}
-			},
-		});
+	reportError(action: string, error: unknown) { const message = error instanceof Error ? error.message : String(error); console.error(`${action}:`, message); notify(message, "error"); }
+	private async refreshSidebar() { if (this.sidebarView) await this.sidebarView.render(); }
+	private settingsEffects(): SettingsEffects {
+		return {
+			logout: () => this.invalidateCurrentProviderAuth(),
+			rebuild: () => this.rebuildRuntime(),
+			save: () => this.saveSettings(),
+			refresh: () => this.refreshSidebar(),
+		};
 	}
-
-	/**
-	 * Activates the sidebar view.
-	 */
-	async activateSidebar() {
-		const rightLeaf = this.app.workspace.getRightLeaf(false);
-		if (!rightLeaf) {
-			console.warn("No right leaf available.");
-			return;
-		}
-
-		await rightLeaf.setViewState({
-			type: VIEW_TYPE_TODO_SIDEBAR,
-			active: true,
-		});
-
-		this.app.workspace.revealLeaf(rightLeaf);
-	}
-	/**
-	 * Loads plugin settings from the Obsidian vault.
-	 */
-	async loadSettings(): Promise<void> {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			await this.loadData(),
-		);
-	}
-
-	/**
-	 * Saves plugin settings to the Obsidian vault.
-	 */
-	async saveSettings(): Promise<void> {
-		await this.saveData(this.settings);
-	}
-
-	async getAccessToken(): Promise<string> {
+	private async invalidateCurrentProviderAuth() {
 		try {
-			const tokenData = await this.authManager.getToken();
-			return tokenData.accessToken;
-		} catch (error) {
-			console.error("Error fetching access token:", error);
-			throw error;
+			if (this.runtime?.id === this.settings.provider) await this.runtime.auth.logout();
+		} finally {
+			await new FileTokenStore(path.join(this.pluginDirectory, `${this.settings.provider}-token-cache.json`)).remove();
+			if (this.settings.provider === "microsoft") await new FileTokenStore(path.join(this.pluginDirectory, "token_cache.json")).remove();
+			this.taskCache = null;
 		}
 	}
-
-	/**
-	 * Fetches available task lists and updates the plugin settings.
-	 */
-	async loadAvailableTaskLists(): Promise<void> {
-		notify("Loading task lists...");
-		try {
-			const listArray = await this.api.fetchTaskLists();
-			console.log("Fetched Task Lists:", listArray);
-
-			this.settings.taskLists = listArray.map((list) => ({
-				id: list.id,
-				title: list.title,
-			}));
-
-			notify("Task lists loaded successfully!", "success");
-		} catch (err) {
-			console.error("Error loading task lists:", err);
-			notify(
-				"Error loading task lists. Check the console for details.",
-				"error",
-			);
-		}
+	async updateProviderCredential(key: "clientId" | "clientSecret" | "redirectUrl", value: string) {
+		await changeProviderCredential(this.settings, key, value, this.settingsEffects());
 	}
-
-	/**
-	 * Get task lists using access token with fetchTaskLists api function.
-	 * @returns A TaskList interface with fetched task lists.
-	 * */
-	async getTaskLists(): Promise<TaskList[]> {
-		try {
-			const taskLists = await this.api.fetchTaskLists();
-			return taskLists;
-		} catch (error) {
-			console.error("Error fetching task lists:", error);
-			throw error;
-		}
+	async updateTimeZone(value: string) { await changeTimeZone(this.settings, value, this.settingsEffects()); }
+	async connectCurrentProvider() { await this.ensureRuntime().auth.login(); notify(`${this.settings.provider} connected.`, "success"); await this.refreshSidebar(); }
+	async disconnectCurrentProvider() { await this.ensureRuntime().auth.logout(); this.taskCache = null; notify(`${this.settings.provider} disconnected.`, "success"); await this.refreshSidebar(); }
+	private async runCommand(action: string, work: () => void | Promise<void>) { try { await work(); } catch (error) { this.reportError(action, error); } }
+	private initializeCommands() {
+		this.addCommand({ id: COMMAND_IDS.openSidebar, name: "Open Task Sidebar", callback: () => this.runCommand("Open sidebar failed", () => this.activateSidebar()) });
+		this.addCommand({ id: COMMAND_IDS.connectProvider, name: "Connect Current Task Provider", callback: () => this.runCommand("Connect failed", () => this.connectCurrentProvider()) });
+		this.addCommand({ id: COMMAND_IDS.disconnectProvider, name: "Disconnect Current Task Provider", callback: () => this.runCommand("Disconnect failed", () => this.disconnectCurrentProvider()) });
+		this.addCommand({ id: COMMAND_IDS.loadTaskLists, name: "Load Task Lists", callback: () => this.loadAvailableTaskLists() });
+		this.addCommand({ id: COMMAND_IDS.selectTaskList, name: "Select Task List", callback: () => this.runCommand("Select list failed", () => this.openTaskListsModal()) });
+		this.addCommand({ id: COMMAND_IDS.refreshTasks, name: "Refresh Tasks", callback: () => this.runCommand("Refresh failed", () => this.refreshViewAndCache()) });
+		this.addCommand({ id: COMMAND_IDS.pushAllTasks, name: "Push All Tasks from Note", callback: async () => { try { const count = await this.pushTasksFromNote(); notify(`${count} new tasks added.`, "success"); await this.refreshViewAndCache(); } catch (e) { this.reportError("Push failed", e); } } });
+		this.addCommand({ id: COMMAND_IDS.pushOneTask, name: "Create and Push Task", callback: () => this.runCommand("Create task failed", () => this.openPushTaskModal()) });
+		this.addCommand({ id: COMMAND_IDS.showOpenTasks, name: "Show Open Tasks List", callback: () => this.runCommand("Show tasks failed", () => this.openTaskCompleteModal()) });
+		this.addCommand({ id: COMMAND_IDS.organizeTasks, name: "Organize Tasks from All Notes", callback: async () => { try { await this.gatherTasks(); notify("Tasks organized.", "success"); } catch (e) { this.reportError("Organize failed", e); } } });
+		this.addCommand({ id: COMMAND_IDS.deleteCompletedTasks, name: "Delete Completed Tasks", callback: async () => { try { const count = await this.deleteAllCompletedTasks(); notify(`${count} completed tasks deleted.`, "success"); } catch (e) { this.reportError("Delete failed", e); } } });
 	}
-
-	/**
-	 * Fetches tasks from the selected list.
-	 * @returns A map of task title to an object containing task details.
-	 */
-	async getTasksFromSelectedList(): Promise<Map<string, TaskItem>> {
-		if (!this.settings.selectedTaskListId) {
-			throw new Error(
-				"No task list selected. Please choose one in settings.",
-			);
-		}
-
-		if (this.taskCache && this.taskCache.tasks) {
-			console.log("Using cached tasks:", this.taskCache.tasks);
-			return new Map(this.taskCache.tasks);
-		}
-		try {
-			console.log("No cached tasks found, refreshing task cache.");
-			return await this.refreshTaskCache();
-		} catch (error) {
-			console.error("Error fetching tasks:", error);
-			throw error;
-		}
-	}
-
-	/**
-	 * Pushes tasks from  active note.
-	 * @returns The number of new tasks created.
-	 */
+	async activateSidebar() { const leaf = this.app.workspace.getRightLeaf(false); if (!leaf) return; await leaf.setViewState({ type: VIEW_TYPE_TODO_SIDEBAR, active: true }); this.app.workspace.revealLeaf(leaf); }
+	private requireListId() { const id = this.providerSettings.selectedListId; if (!id) throw new Error("Select a task list before syncing."); return id; }
+	async loadAvailableTaskLists() { try { const lists = await this.api.fetchTaskLists(); this.providerSettings.taskLists = lists; if (!lists.some(l => l.id === this.providerSettings.selectedListId)) { this.providerSettings.selectedListId = ""; this.providerSettings.selectedListTitle = ""; this.taskCache = null; } await this.saveSettings(); notify("Task lists loaded.", "success"); } catch (e) { this.reportError("Load lists failed", e); } }
+	async getTaskLists(): Promise<TaskList[]> { return this.api.fetchTaskLists(); }
+	async getTasksFromSelectedList(): Promise<TaskItem[]> { const listId = this.requireListId(); if (this.taskCache?.provider === this.settings.provider && this.taskCache.listId === listId) return this.taskCache.tasks; return this.refreshTaskCache(); }
+	private titleKey(title: string) { return title.trim().replace(/\s+/g, " ").toLocaleLowerCase(); }
 	async pushTasksFromNote(): Promise<number> {
-		// Ensure a task list is selected.
-		if (!this.settings.selectedTaskListId) {
-			throw new Error(
-				"No task list selected. Please choose one in settings.",
-			);
-		}
-
-		// Get the active note.
-		const activeFile = this.app.workspace.getActiveFile();
-		if (!activeFile) {
-			throw new Error("No active file found.");
-		}
-
-		// Read note content and extract tasks using a regex.
-		const fileContent = await this.app.vault.read(activeFile);
-		const taskRegex = /^-\s*\[( |x)\]\s+(.+)$/gm;
-		const noteTasks: Array<{ title: string; complete: boolean }> = [];
-		let match;
-		while ((match = taskRegex.exec(fileContent)) !== null) {
-			const complete = match[1] === "x";
-			const title = match[2].trim();
-			noteTasks.push({ title, complete });
-		}
-		if (noteTasks.length === 0) {
-			throw new Error("No tasks found in the active note.");
-		}
-
-		try {
-			const existingTasks = await this.api.fetchTasks();
-			let newTasksCount = 0;
-
-			// Loop over each note task.
-			for (const task of noteTasks) {
-				const existingTask = existingTasks.get(task.title);
-				if (existingTask) {
-					// If the task exists and the note marks it as complete while its status is not complete, update it.
-					if (task.complete && existingTask.status !== "completed") {
-						await this.api.updateTask(existingTask.id, {
-							status: true,
-						});
-					} else {
-						console.log(`Task already exists: ${task.title}`);
-					}
-					continue;
-				}
-
-				await this.api.createTask(task.title);
-				newTasksCount++;
-			}
-			console.log("Synced Tasks:", noteTasks);
-			return newTasksCount;
-		} catch (error) {
-			console.error("Error syncing tasks:", error);
-			throw error;
-		}
+		const listId = this.requireListId(); const activeFile = this.app.workspace.getActiveFile(); if (!activeFile) throw new Error("No active file found.");
+		const content = await this.app.vault.read(activeFile); const regex = /^-\s*\[( |x|X)\]\s+(.+)$/gm; const noteTasks: Array<{ title: string; completed: boolean }> = []; let match: RegExpExecArray | null;
+		while ((match = regex.exec(content))) noteTasks.push({ completed: match[1].toLowerCase() === "x", title: match[2].trim() }); if (!noteTasks.length) throw new Error("No tasks found in the active note.");
+		const existing = await this.api.fetchTasks(listId, true); const byTitle = new Map(existing.map(task => [this.titleKey(task.title), task])); let created = 0;
+		for (const task of noteTasks) { const found = byTitle.get(this.titleKey(task.title)); if (found) { if (task.completed && found.status === "open") await this.api.completeTask(listId, found.id); continue; } const made = await this.api.createTask(listId, { title: task.title }); byTitle.set(this.titleKey(task.title), made); if (task.completed) await this.api.completeTask(listId, made.id); created++; }
+		return created;
 	}
-
-	/**
-	 * Pushes a single task to selected list.
-	 * @param task - The task title text to push.
-	 */
-	async pushOneTask(task: string, dueDate?: string) {
-		if (!this.settings.selectedTaskListId) {
-			throw new Error(
-				"No task list selected. Please choose one in settings.",
-			);
-		}
-
-		try {
-			const existingTasks = await this.api.fetchTasks();
-			const existingTask = existingTasks.get(task);
-
-			if (existingTask) {
-				console.log(`Task already exists: ${task}`);
-			}
-
-			await this.api.createTask(task, dueDate);
-			await this.refreshViewAndCache();
-		} catch (error) {
-			console.error("Error syncing tasks:", error);
-			throw error;
-		}
-	}
-
-	/**
-	 * Gathers tasks from all markdown files in the vault and updates (or creates) a consolidated note.
-	 * @returns A map of task text to its current state.
-	 */
-	async gatherTasks(): Promise<Map<string, string>> {
-		const noteName = "Tasks List.md";
-		const markdownFiles = this.app.vault.getMarkdownFiles();
-		const tasksMap = new Map<string, string>();
-
-		// Regex to match both undone (- [ ]) and done (- [x]) tasks, allowing optional leading spaces.
-		const taskRegex = /^\s*-\s*\[( |x)\]\s+(.*)$/gm;
-
-		// Loop through every file in the vault.
-		for (const file of markdownFiles) {
-			const content = await this.app.vault.read(file);
-			let match;
-			while ((match = taskRegex.exec(content)) !== null) {
-				// console.log("Match:", match);
-				// match[1] is either " " (undone) or "x" (done)
-				// match[2] is the task text
-				const currentState = match[1] === "x" ? "[x]" : "[ ]";
-				const taskText = match[2].trim();
-
-				// If the task already exists and any occurrence is done, mark it as done.
-				if (tasksMap.has(taskText)) {
-					if (currentState === "[x]") {
-						tasksMap.set(taskText, "[x]");
-					}
-				} else {
-					tasksMap.set(taskText, currentState);
-				}
-			}
-		}
-
-		// Build the new consolidated content.
-		const finalTasks = Array.from(tasksMap.entries()).map(
-			([taskText, state]) => `- ${state} ${taskText}`,
-		);
-		const newContent = finalTasks.join("\n");
-
-		// Update or create the consolidated note.
-		const targetFile = this.app.vault.getAbstractFileByPath(noteName);
-		if (!targetFile) {
-			await this.app.vault.create(noteName, newContent);
-		} else if (targetFile instanceof TFile) {
-			await this.app.vault.modify(targetFile, newContent);
-		} else {
-			throw new Error("Unexpected file type for Tasks List");
-		}
-
-		return tasksMap;
-	}
-
-	/**
-	 * Open an interactive window to create task and push it.
-	 */
-	async openPushTaskModal() {
-		new TaskTitleModal(this.app, async (result: TaskInputResult) => {
-			try {
-				notify("Pushing tasks ...");
-				await this.pushOneTask(result.title, result.dueDate);
-				notify(`Tasks pushed successfully!`, "success");
-			} catch (error) {
-				console.error("Error pushing tasks:", error);
-				notify(
-					"Error pushing tasks. Check the console for details.",
-					"error",
-				);
-			}
-		}).open();
-	}
-
-	/**
-	 * Open a interactive window for the user to interact and select a target task list.
-	 */
-	async openTaskListsModal() {
-		const tasksLists = this.settings.taskLists;
-
-		console.log("Task Lists:", tasksLists);
-		new GenericSelectModal<TaskList>(
-			this.app,
-			tasksLists,
-			(taskList) => taskList.title,
-			async (taskList: TaskList) => {
-				this.settings.selectedTaskListId = taskList.id;
-				this.settings.selectedTaskListTitle = taskList.title;
-				await this.saveSettings();
-				await this.refreshViewAndCache();
-			},
-		).open();
-	}
-
-	/**
-	 * Open a interactive window for the user to interact and select to complete task items.
-	 */
-	async openTaskCompleteModal() {
-		const tasksMap = await this.getTasksFromSelectedList();
-		const notStartedTasks = Array.from(tasksMap.values()).filter(
-			(task) => task.status !== "completed",
-		);
-
-		new GenericSelectModal<TaskItem>(
-			this.app,
-			notStartedTasks,
-			(task) => (task.status !== "completed" ? task.title : ""),
-			async (task: { title: string; status: string; id: string }) => {
-				notify(`Marking "${task.title}" as complete...`);
-				await this.api.updateTask(task.id, {
-					status: true,
-				});
-				notify(
-					`Task "${task.title}" marked as complete and synced.`,
-					"success",
-				);
-
-				await this.refreshViewAndCache();
-			},
-		).open();
-	}
-
-	async getTaskFromCache(): Promise<Map<string, TaskItem>> {
-		const currentData = (await this.loadData()) || {};
-		const tasksArray = currentData.tasks;
-		if (!tasksArray) {
-			throw new Error("No task found.");
-		}
-		const tasks = new Map<string, TaskItem>(tasksArray);
-		return tasks;
-	}
-
-	/**
-	 * Fetch task using api function and store in the cache for quick access.
-	 */
-	async refreshTaskCache(): Promise<Map<string, TaskItem>> {
-		if (!this.settings.selectedTaskListId) {
-			throw new Error(
-				"No task list selected. Please choose one in settings.",
-			);
-		}
-
-		try {
-			const tasks = await this.api.fetchTasks();
-
-			this.taskCache = { tasks: Array.from(tasks.entries()) };
-
-			console.log("Refresh task cache", tasks);
-			return tasks;
-		} catch (error) {
-			console.error("Error fetching tasks:", error);
-			throw error;
-		}
-	}
-
-	/**
-	 * Use the deleteTask api function to delete all completed task in the targeted task list.
-	 * @returns Amount of deleted tasks.
-	 */
-	async deleteAllCompletedTasks(): Promise<number> {
-		if (!this.settings.selectedTaskListId) {
-			throw new Error(
-				"No task list selected. Please choose one in settings.",
-			);
-		}
-
-		let deletedTasksCount = 0;
-		try {
-			const tasks = await this.getTasksFromSelectedList();
-			const completedTasks = Array.from(tasks.values()).filter(
-				(task) => task.status === "completed",
-			);
-
-			for (const task of completedTasks) {
-				console.log("Deleting Task:", task);
-				await this.api.deleteTask(task.id);
-				deletedTasksCount++;
-			}
-
-			this.refreshViewAndCache();
-			return deletedTasksCount;
-		} catch (error) {
-			console.error("Error deleting tasks:", error);
-			return deletedTasksCount;
-		}
-	}
-
-	/**
-	 * Refreshes the sidebar view and task cache to display the latest tasks.
-	 */
-	async refreshViewAndCache() {
-		await this.refreshTaskCache();
-		if (this.sidebarView) {
-			await this.sidebarView.render();
-		} else {
-			console.warn("Sidebar view is not active.");
-		}
-	}
+	async pushOneTask(title: string, dueDate?: string): Promise<boolean> { const listId = this.requireListId(); const existing = await this.api.fetchTasks(listId, true); if (existing.some(t => this.titleKey(t.title) === this.titleKey(title))) return false; await this.api.createTask(listId, { title, dueDate }); await this.refreshViewAndCache(); return true; }
+	async gatherTasks(): Promise<Map<string, string>> { const output = new Map<string, string>(); const regex = /^\s*-\s*\[( |x|X)\]\s+(.*)$/gm; for (const file of this.app.vault.getMarkdownFiles()) { const content = await this.app.vault.read(file); let match: RegExpExecArray | null; while ((match = regex.exec(content))) { const title = match[2].trim(), state = match[1].toLowerCase() === "x" ? "[x]" : "[ ]"; if (!output.has(title) || state === "[x]") output.set(title, state); } } const body = Array.from(output, ([title, state]) => `- ${state} ${title}`).join("\n"); const target = this.app.vault.getAbstractFileByPath("Tasks List.md"); if (!target) await this.app.vault.create("Tasks List.md", body); else if (target instanceof TFile) await this.app.vault.modify(target, body); else throw new Error("Unexpected file type for Tasks List.md"); return output; }
+	async openPushTaskModal() { new TaskTitleModal(this.app, async (result: TaskInputResult) => { try { const made = await this.pushOneTask(result.title, result.dueDate); notify(made ? "Task created." : "A task with that title already exists.", made ? "success" : "info"); } catch (e) { this.reportError("Create task failed", e); } }).open(); }
+	async openTaskListsModal() { new GenericSelectModal<TaskList>(this.app, this.providerSettings.taskLists, item => item.title, async item => { this.providerSettings.selectedListId = item.id; this.providerSettings.selectedListTitle = item.title; this.taskCache = null; await this.saveSettings(); await this.refreshViewAndCache(); }).open(); }
+	async openTaskCompleteModal() { const listId = this.requireListId(); const open = (await this.getTasksFromSelectedList()).filter(t => t.status === "open"); new GenericSelectModal<TaskItem>(this.app, open, item => item.title, async item => { await this.api.completeTask(listId, item.id); await this.refreshViewAndCache(); }).open(); }
+	async refreshTaskCache(): Promise<TaskItem[]> { const listId = this.requireListId(); const tasks = await this.api.fetchTasks(listId, this.settings.showCompleted); this.taskCache = { provider: this.settings.provider, listId, tasks }; return tasks; }
+	async deleteAllCompletedTasks(): Promise<number> { const listId = this.requireListId(); const completed = (await this.api.fetchTasks(listId, true)).filter(t => t.status === "completed"); for (const task of completed) await this.api.deleteTask(listId, task.id); await this.refreshViewAndCache(); return completed.length; }
+	async refreshViewAndCache() { await this.refreshTaskCache(); if (this.sidebarView) await this.sidebarView.render(); }
 }
