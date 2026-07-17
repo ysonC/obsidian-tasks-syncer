@@ -18,7 +18,7 @@ async function createFixture({
 	temporaryDirectories.push(root);
 
 	const validManifest = {
-		id: "task-syncer-plugin",
+		id: "task-syncer",
 		name: "Task Syncer",
 		version: "2.1.0",
 		minAppVersion: "1.11.4",
@@ -73,6 +73,18 @@ describe("validateRelease", () => {
 		});
 
 		await assertValidationError(root, /manifest\.json version must use exact x\.y\.z format/i);
+	});
+
+	it("rejects a plugin ID ending with plugin", async () => {
+		const root = await createFixture({ manifest: { id: "task-syncer-plugin" } });
+
+		await assertValidationError(root, /id must not end with ["']?plugin/i);
+	});
+
+	it("rejects digits in a plugin ID", async () => {
+		const root = await createFixture({ manifest: { id: "task-syncer-2" } });
+
+		await assertValidationError(root, /id must contain only lowercase letters.*hyphens/i);
 	});
 
 	it("rejects a missing versions.json mapping", async () => {

@@ -8,8 +8,8 @@ describe("plugin directory resolution", () => {
 	});
 
 	it("falls back to the config directory and plugin ID when manifest.dir is unavailable", () => {
-		expect(resolvePluginDirectory("/vault", undefined, "task-syncer-plugin"))
-			.toBe("/vault/.obsidian/plugins/task-syncer-plugin");
+		expect(resolvePluginDirectory("/vault", undefined, "task-syncer"))
+			.toBe("/vault/.obsidian/plugins/task-syncer");
 	});
 }
 );

@@ -7,7 +7,7 @@ Task Syncer connects an Obsidian **desktop** vault to either Microsoft To Do or 
 Task Syncer requires Obsidian 1.11.4 or newer and is desktop-only.
 
 - **Community Plugins:** once the plugin is published, open **Settings → Community plugins → Browse**, search for **Task Syncer**, install it, and enable it.
-- **Release files:** download `main.js`, `manifest.json`, and `styles.css` from a release and place them in `<vault>/.obsidian/plugins/task-syncer-plugin/`. Restart Obsidian, then enable **Task Syncer** under Community plugins.
+- **Release files:** download `main.js`, `manifest.json`, and `styles.css` from a release and place them in `<vault>/.obsidian/plugins/task-syncer/`. Restart Obsidian, then enable **Task Syncer** under Community plugins.
 
 Do not install source files or development dependencies into a vault.
 
