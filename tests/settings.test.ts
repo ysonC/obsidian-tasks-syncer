@@ -22,4 +22,19 @@ describe("settings migration", () => {
 		expect(b).toEqual(DEFAULT_SETTINGS);
 		expect(b.providers.ticktick.taskLists).toEqual([]);
 	});
+
+	it("defaults automatic refresh to ten minutes with startup refresh disabled", () => {
+		const settings = migrateSettings(undefined);
+		expect(settings.autoSyncIntervalMinutes).toBe(10);
+		expect(settings.autoSyncOnStartup).toBe(false);
+	});
+
+	it("adds automatic refresh defaults to existing v2 settings", () => {
+		const existing = migrateSettings(undefined) as any;
+		delete existing.autoSyncIntervalMinutes;
+		delete existing.autoSyncOnStartup;
+		const migrated = migrateSettings(existing);
+		expect(migrated.autoSyncIntervalMinutes).toBe(10);
+		expect(migrated.autoSyncOnStartup).toBe(false);
+	});
 });

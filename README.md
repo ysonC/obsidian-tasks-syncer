@@ -8,6 +8,7 @@ Task Syncer connects an Obsidian desktop vault to **Microsoft To Do** or **TickT
 - View open and optionally completed tasks in a sidebar.
 - Create, edit, complete, and delete tasks.
 - Push Markdown checkboxes from the active note.
+- Automatically refresh remote tasks on a configurable interval (10 minutes by default), with an optional startup refresh.
 - Keep a canonical in-memory `TaskItem[]` cache keyed by provider/list; title matching is used only temporarily to deduplicate note pushes.
 
 ## Commands
@@ -36,7 +37,12 @@ TickTick uses the official authorization-code endpoints (`https://ticktick.com/o
 - A desktop plugin cannot fully protect a configured OAuth client secret. Use credentials intended for a local desktop installation and understand this limitation.
 - TickTick does not guarantee a refresh token for this flow. The plugin does not assume one; when a token expires or the API returns 401, reconnect from the command/settings UI.
 - TickTick's documented Open API has no reopen operation. Completed TickTick checkboxes are disabled. Microsoft tasks can be reopened.
-- No tags, repeats, reminders, subtasks, habits, focus mode, or background sync.
+- No tags, repeats, reminders, subtasks, habits, focus mode, or automatic Markdown-to-provider pushes.
+- Automatic refresh only fetches remote provider tasks into the plugin cache/sidebar; it never pushes Markdown tasks automatically.
+
+## Automatic refresh
+
+In **Task Syncer Settings**, choose an automatic refresh interval: disabled, 1, 5, 10, 15, 30, or 60 minutes. The default is **10 minutes**. Enable **Refresh on startup** to fetch once after the Obsidian workspace is ready. Refreshes are skipped until a task list is selected, and overlapping refreshes are prevented.
 
 ## Development
 
