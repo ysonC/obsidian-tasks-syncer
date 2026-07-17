@@ -1,11 +1,11 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, SecretComponent, Setting } from "obsidian";
 import TaskSyncerPlugin from "./main";
 import { playConfetti } from "./utils";
 import { ProviderId } from "./types";
 export { DEFAULT_SETTINGS } from "./settings-model";
-export type { TaskSyncerSettings as MyTodoSettings } from "./settings-model";
+export type { TaskSyncerSettings } from "./settings-model";
 
-export class MyTodoSettingTab extends PluginSettingTab {
+export class TaskSyncerSettingTab extends PluginSettingTab {
 	constructor(app: App, private plugin: TaskSyncerPlugin) { super(app, plugin); }
 
 	display(): void {
@@ -13,7 +13,8 @@ export class MyTodoSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		const provider = this.plugin.settings.provider;
 		const config = this.plugin.providerSettings;
-		containerEl.createEl("h2", { text: "Task Syncer Settings" });
+		new Setting(containerEl).setName("Task Syncer").setHeading();
+		new Setting(containerEl).setName("Provider and account").setHeading();
 
 		new Setting(containerEl)
 			.setName("Provider")
@@ -27,13 +28,14 @@ export class MyTodoSettingTab extends PluginSettingTab {
 					this.display();
 				})));
 
-		new Setting(containerEl)
+		const credentials = new Setting(containerEl)
 			.setName(`${provider === "ticktick" ? "TickTick" : "Microsoft"} OAuth credentials`)
-			.setDesc("Stored in this plugin's Obsidian settings. Desktop OAuth clients that require a secret cannot keep it fully confidential.")
+			.setDesc("Client secrets are referenced through Obsidian SecretStorage and are not saved in the plugin data file.")
 			.addText(text => text.setPlaceholder("Client ID").setValue(config.clientId).onChange(value =>
-				this.run("Credential update failed", () => this.plugin.updateProviderCredential("clientId", value.trim()))))
-			.addText(text => text.setPlaceholder("Client secret").setValue(config.clientSecret).onChange(value =>
-				this.run("Credential update failed", () => this.plugin.updateProviderCredential("clientSecret", value))));
+				this.run("Credential update failed", () => this.plugin.updateProviderCredential("clientId", value.trim()))));
+		new SecretComponent(this.app, credentials.controlEl)
+			.setValue(config.clientSecretId)
+			.onChange(value => this.run("Credential update failed", () => this.plugin.updateProviderCredential("clientSecretId", value)));
 
 		new Setting(containerEl)
 			.setName("Redirect URL")
@@ -69,6 +71,8 @@ export class MyTodoSettingTab extends PluginSettingTab {
 				await this.plugin.saveSettings();
 			}));
 		});
+
+		new Setting(containerEl).setName("Refresh and display").setHeading();
 
 		new Setting(containerEl)
 			.setName("Automatic refresh interval")

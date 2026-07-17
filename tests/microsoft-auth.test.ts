@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { MicrosoftAuthProvider } from "../src/auth/microsoft";
+import { BrowserWindow } from "@electron/remote";
+import { MicrosoftAuthProvider, openOAuthWindow } from "../src/auth/microsoft";
+
+vi.mock("@electron/remote", () => ({ BrowserWindow: vi.fn() }));
 
 class MemoryStore {
 	value = "";
@@ -31,6 +34,27 @@ function setup(callbackState: string | undefined) {
 }
 
 describe("Microsoft OAuth state", () => {
+	it("rejects a malformed redirect before creating a browser window", async () => {
+		await expect(openOAuthWindow("https://login.example/authorize", "not a URL")).rejects.toThrow(/invalid.*redirect/i);
+		expect(BrowserWindow).not.toHaveBeenCalled();
+	});
+
+	it("closes and rejects when navigation supplies a malformed URL", async () => {
+		const handlers = new Map<string, (...args: any[]) => void>();
+		const close = vi.fn();
+		vi.mocked(BrowserWindow).mockImplementationOnce(() => ({
+			webContents: { on: (event: string, handler: (...args: any[]) => void) => handlers.set(event, handler) },
+			on: (event: string, handler: (...args: any[]) => void) => handlers.set(event, handler),
+			loadURL: vi.fn(async () => {}),
+			isDestroyed: () => false,
+			close,
+		}) as any);
+		const authorization = openOAuthWindow("https://login.example/authorize", "http://localhost:5000");
+		expect(() => handlers.get("will-navigate")?.({}, "not a URL")).not.toThrow();
+		await expect(authorization).rejects.toThrow(/invalid url/i);
+		expect(close).toHaveBeenCalledOnce();
+	});
+
 	it("includes generated state and accepts its exact return", async () => {
 		const { auth, client } = setup("expected-state");
 		await expect(auth.login()).resolves.toBe("access");

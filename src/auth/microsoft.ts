@@ -51,12 +51,29 @@ export class MicrosoftAuthProvider implements AuthProvider {
 }
 
 export function openOAuthWindow(authUrl: string, redirectUrl: string): Promise<string> {
+	let configuredRedirect: URL;
+	try {
+		configuredRedirect = new URL(redirectUrl);
+	} catch {
+		return Promise.reject(new Error(`Invalid Microsoft OAuth redirect URL: ${redirectUrl}`));
+	}
 	return new Promise((resolve, reject) => {
 		const win = new BrowserWindow({ width: 600, height: 700, show: true, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, partition: `task-syncer-oauth-${Date.now()}` } });
 		let settled = false;
-		const finish = (error?: Error, url?: string) => { if (settled) return; settled = true; if (!win.isDestroyed()) win.close(); error ? reject(error) : resolve(url!); };
-		const inspect = (event: any, url: string) => { if (!isExactRedirect(url, redirectUrl)) return; event.preventDefault(); const parsed = new URL(url); const error = parsed.searchParams.get("error"); finish(error ? new Error(`OAuth authorization failed: ${error}`) : undefined, url); };
+		const finish = (error?: Error, url?: string) => { if (settled) return; settled = true; if (!win.isDestroyed()) win.close(); if (error) reject(error); else resolve(url!); };
+		const inspect = (event: any, url: string) => {
+			try {
+				const parsed = new URL(url);
+				if (!isSameRedirect(parsed, configuredRedirect)) return;
+				event.preventDefault();
+				const error = parsed.searchParams.get("error");
+				finish(error ? new Error(`OAuth authorization failed: ${error}`) : undefined, url);
+			} catch (error) {
+				finish(error instanceof Error ? error : new Error(String(error)));
+			}
+		};
 		win.webContents.on("will-redirect", inspect); win.webContents.on("will-navigate", inspect); win.on("closed", () => finish(new Error("OAuth login window was closed."))); win.loadURL(authUrl).catch((e: Error) => finish(e));
 	});
 }
-export function isExactRedirect(callback: string, configured: string) { const a = new URL(callback), b = new URL(configured); return a.protocol === b.protocol && a.host === b.host && a.pathname === b.pathname; }
+function isSameRedirect(callback: URL, configured: URL) { return callback.protocol === configured.protocol && callback.host === configured.host && callback.pathname === configured.pathname; }
+export function isExactRedirect(callback: string, configured: string) { return isSameRedirect(new URL(callback), new URL(configured)); }

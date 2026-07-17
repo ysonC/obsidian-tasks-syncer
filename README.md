@@ -1,65 +1,120 @@
 # Task Syncer for Obsidian
 
-Task Syncer connects an Obsidian desktop vault to **Microsoft To Do** or **TickTick**. The sidebar and commands use one selected provider and list at a time.
+Task Syncer connects an Obsidian **desktop** vault to either Microsoft To Do or TickTick. Commands and the sidebar operate on one selected provider and remote list at a time.
 
-## Features
+## Installation
 
-- Load provider lists and select a target list.
-- View open and optionally completed tasks in a sidebar.
-- Create, edit, complete, and delete tasks.
-- Push Markdown checkboxes from the active note.
-- Automatically refresh remote tasks on a configurable interval (10 minutes by default), with an optional startup refresh.
-- Keep a canonical in-memory `TaskItem[]` cache keyed by provider/list; title matching is used only temporarily to deduplicate note pushes.
+Task Syncer requires Obsidian 1.11.4 or newer and is desktop-only.
 
-## Commands
+- **Community Plugins:** once the plugin is published, open **Settings → Community plugins → Browse**, search for **Task Syncer**, install it, and enable it.
+- **Release files:** download `main.js`, `manifest.json`, and `styles.css` from a release and place them in `<vault>/.obsidian/plugins/task-syncer-plugin/`. Restart Obsidian, then enable **Task Syncer** under Community plugins.
 
-Commands are provider-neutral: **Connect Current Task Provider**, **Disconnect Current Task Provider**, **Load Task Lists**, **Select Task List**, **Refresh Tasks**, **Push All Tasks from Note**, **Create and Push Task**, **Show Open Tasks List**, and **Delete Completed Tasks**. Switching provider clears the task cache.
+Do not install source files or development dependencies into a vault.
 
 ## Provider setup
 
+You must create your own OAuth application. A client secret embedded in a desktop application cannot be made fully confidential; use credentials intended for this local installation.
+
 ### Microsoft To Do
 
-Register a Microsoft application with delegated `Tasks.ReadWrite` permission and configure its client ID, client secret, and exact redirect URL in Task Syncer settings. Existing pre-v2 flat Microsoft settings migrate automatically, including credentials and selected list.
+1. Register an application in the Microsoft identity platform for personal Microsoft accounts.
+2. Add delegated Microsoft Graph permission `Tasks.ReadWrite` and register an exact redirect URL (the default shown by the plugin is `http://localhost:5000`).
+3. In **Settings → Task Syncer**, choose **Microsoft To Do** and enter the client ID, client secret, and the exact redirect URL.
+4. Select **Connect**, complete Microsoft login and consent, then **Load lists** and select a list.
+
+The plugin also requests `offline_access` so MSAL can maintain the account session in its token cache.
 
 ### TickTick
 
 1. Create a TickTick OAuth application.
-2. Register the exact redirect URL you will enter in plugin settings.
-3. Configure the client ID and client secret.
-4. Request scopes `tasks:read tasks:write`.
-5. Select TickTick, click **Connect**, then **Load lists** and choose a list.
+2. Register the exact redirect URL used in Task Syncer.
+3. Configure the client ID and client secret, with scopes `tasks:read tasks:write`.
+4. Choose **TickTick**, select **Connect**, then **Load lists** and select a list.
 
-TickTick uses the official authorization-code endpoints (`https://ticktick.com/oauth/authorize` and `/oauth/token`) and Open API base `https://api.ticktick.com/open/v1`. OAuth runs in an isolated Electron `BrowserWindow`, uses a cryptographically random state, and requires an exact redirect match. Token exchanges are form encoded with HTTP Basic client authentication. Tokens are held in a dedicated provider cache and are never logged.
+TickTick may not issue a refresh token for this flow. If its access token expires or TickTick returns 401, reconnect the account.
 
-## Important limitations
+## Settings
 
-- Desktop only: OAuth depends on Electron `BrowserWindow`.
-- A desktop plugin cannot fully protect a configured OAuth client secret. Use credentials intended for a local desktop installation and understand this limitation.
-- TickTick does not guarantee a refresh token for this flow. The plugin does not assume one; when a token expires or the API returns 401, reconnect from the command/settings UI.
-- TickTick's documented Open API has no reopen operation. Completed TickTick checkboxes are disabled. Microsoft tasks can be reopened.
-- No tags, repeats, reminders, subtasks, habits, focus mode, or automatic Markdown-to-provider pushes.
-- Automatic refresh only fetches remote provider tasks into the plugin cache/sidebar; it never pushes Markdown tasks automatically.
+- **Provider:** Microsoft To Do or TickTick. Switching providers clears the in-memory task cache; each provider retains its selected list.
+- **OAuth credentials / Redirect URL:** credentials for the selected provider application.
+- **Task lists / Selected task list:** fetch remote lists and choose the list used by commands and the sidebar.
+- **Automatic refresh interval:** disabled or every 1, 5, 10, 15, 30, or 60 minutes (default: 10). This only fetches remote data.
+- **Refresh on startup:** fetch after the Obsidian workspace is ready.
+- **Show completed tasks / Show due dates:** control sidebar data and display.
+- **IANA time zone:** used when writing TickTick due dates.
+- **Confetti:** enable and choose completion animation size.
 
-## Automatic refresh
+## Commands
 
-In **Task Syncer Settings**, choose an automatic refresh interval: disabled, 1, 5, 10, 15, 30, or 60 minutes. The default is **10 minutes**. Enable **Refresh on startup** to fetch once after the Obsidian workspace is ready. Refreshes are skipped until a task list is selected, and overlapping refreshes are prevented.
+Open the Command Palette to run:
+
+- **Open task sidebar**
+- **Connect current task provider** / **Disconnect current task provider**
+- **Load task lists** / **Select task list**
+- **Refresh tasks**
+- **Push all tasks from note**
+- **Create and push task**
+- **Show open tasks list**
+- **Organize tasks from all notes**
+- **Delete completed tasks**
+
+The sidebar can create, edit, complete, and reopen where supported. TickTick's documented Open API has no reopen operation, so completed TickTick tasks cannot be reopened.
+
+## Sync semantics and deletion
+
+Task Syncer is not a bidirectional file synchronizer:
+
+- Refresh and automatic refresh fetch the selected remote list into an in-memory, ID-based cache and sidebar. They do not edit Markdown.
+- **Push all tasks from note** reads top-level Markdown checkbox lines (`- [ ]` and `- [x]`) from the active note and creates or completes matching remote tasks. For this operation only, trimmed, whitespace-collapsed, case-insensitive titles prevent duplicate pushes. Remote tasks with duplicate titles are otherwise preserved by ID.
+- **Create and push task** creates one task unless a normalized title already exists.
+- **Organize tasks from all notes** scans local Markdown files and creates or replaces local `Tasks List.md`; it does not contact a provider.
+- Changes made in the sidebar are sent to the selected remote provider but are not written back to source notes.
+
+**Delete completed tasks** first fetches completed tasks and shows the provider, selected list, and count in a destructive confirmation dialog. Closing or cancelling the dialog performs no deletion. Confirming permanently deletes those completed remote tasks one at a time.
+
+## Network and account disclosure
+
+Task Syncer makes network requests only for the selected provider:
+
+- **Microsoft login:** `login.microsoftonline.com` is opened for OAuth authorization. The client ID, redirect URL, requested scopes, random state, authorization code, and client secret/token-exchange data are used to authenticate the configured app.
+- **Microsoft Graph:** `graph.microsoft.com/v1.0` receives the access token and list/task identifiers plus task titles, completion status, and due-date fields as needed to list, create, update, complete/reopen, or delete Microsoft To Do data.
+- **TickTick OAuth:** `ticktick.com/oauth/authorize` and `ticktick.com/oauth/token` receive the client ID, redirect URL, scopes, random state, authorization code, client credentials, and token-exchange data needed to authenticate.
+- **TickTick Open API:** `api.ticktick.com/open/v1` receives the access token and project/task identifiers plus titles, completion state, due dates, and configured time zone as needed to list, create, update, complete, rename lists, or delete TickTick data.
+
+OAuth authorization runs in an isolated Electron window and validates state and the configured redirect. Task Syncer has **no telemetry, analytics, advertising, or self-updater**. Updates are delivered through Obsidian Community Plugins or manually installed releases.
+
+## Local data and secrets
+
+- OAuth client secrets and provider token caches are stored through Obsidian SecretStorage.
+- Normal configuration—including client IDs, SecretStorage reference IDs, redirect URLs, selected provider/list, display choices, refresh choices, and time zone—is stored in the plugin's `data.json`.
+- During upgrade, legacy plaintext credentials/token files are copied to SecretStorage and deleted only after exact read-back verification. If a different token already exists in SecretStorage, the legacy file is left in place rather than deleting unverified data.
+- The plugin reads Markdown only for explicit note-push/organize commands and writes only `Tasks List.md` for the organize command.
+
+## Troubleshooting
+
+- **Missing OAuth credentials:** enter all three provider fields. The redirect URL must exactly match the provider registration, including scheme, host, port, and path.
+- **Connect window closes or login fails:** retry Connect; check provider app account type, permissions/scopes, redirect URL, and system clock. Closing the window cancels login.
+- **Session expired / 401:** disconnect if possible, then connect again. TickTick requires reconnection when its token expires.
+- **403:** verify Microsoft `Tasks.ReadWrite` consent or TickTick `tasks:read tasks:write` scopes.
+- **No lists or tasks:** connect, load lists, select a list, then refresh. Automatic refresh is skipped until a list is selected.
+- **Legacy token file remains after upgrade:** Task Syncer preserves it when an existing SecretStorage token cannot be proven identical. Confirm the account works before manually removing the old file from the plugin directory.
+- **Mobile:** this plugin cannot run on mobile because OAuth uses Electron desktop APIs.
 
 ## Development
 
+Requirements: Node.js and npm.
+
 ```bash
-npm install
-npm test          # isolated Vitest unit tests; no real API or vault data
+npm ci
+npm run lint
+npm test
+npm run build
+npm run check       # lint + tests + production build
 npm run test:watch
-npm run build     # TypeScript check + production bundle
-npm run check     # tests + build
 ```
 
-Tests mock network/provider boundaries and never use real credentials or user data. See [TickTick smoke test](docs/testing/ticktick-smoke-test.md) for an opt-in manual check.
-
-## Markdown behavior
-
-`Push All Tasks from Note` reads `- [ ]` and `- [x]` lines. For that operation only, titles are trimmed, whitespace-collapsed, and case-normalized to avoid duplicate remote tasks. Remote storage and the cache remain ID-based, so tasks with duplicate titles returned by a provider are preserved.
+Automated tests mock Obsidian and provider/network boundaries; they do not use a real vault, keychain, account, or API. See [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), and the opt-in [TickTick smoke test](docs/testing/ticktick-smoke-test.md).
 
 ## License
 
-[MIT](LICENSE)
+Task Syncer is released under the [MIT License](LICENSE). Copyright © 2026 Wyson Cheng.
