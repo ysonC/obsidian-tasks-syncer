@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const EXACT_VERSION = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
-const PLUGIN_ID = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+const PLUGIN_ID = /^[a-z](?:[a-z-]*[a-z])?$/;
 const REQUIRED_STRING_FIELDS = ["id", "name", "version", "minAppVersion", "description", "author"];
 const REQUIRED_RELEASE_ASSETS = ["main.js", "manifest.json", "styles.css"];
 
@@ -82,7 +82,10 @@ export async function validateRelease(rootDirectory = process.cwd()) {
 	}
 
 	if (!PLUGIN_ID.test(manifest.id ?? "")) {
-		errors.push("manifest.json id must contain only lowercase letters, numbers, and non-leading/trailing hyphens");
+		errors.push("manifest.json id must contain only lowercase letters and non-leading/trailing hyphens");
+	}
+	if (typeof manifest.id === "string" && manifest.id.endsWith("plugin")) {
+		errors.push('manifest.json id must not end with "plugin"');
 	}
 	if (typeof manifest.id === "string" && manifest.id.includes("obsidian")) {
 		errors.push('manifest.json id must not contain "obsidian"');

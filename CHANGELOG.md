@@ -2,6 +2,13 @@
 
 All notable user-facing changes to Task Syncer are documented here.
 
+## [2.1.1] - 2026-07-17
+
+### Changed
+
+- Changed the manifest ID from `task-syncer-plugin` to `task-syncer` to comply with Obsidian's manifest rule that plugin IDs cannot end with `plugin`.
+- Tightened release validation to reject IDs containing digits or ending with `plugin`.
+
 ## [2.1.0] - 2026-07-17
 
 ### Added
@@ -26,3 +33,4 @@ All notable user-facing changes to Task Syncer are documented here.
 - Tokens are not logged, and legacy plaintext is deleted only after successful SecretStorage read-back verification.
 
 [2.1.0]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.0
+[2.1.1]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.1
