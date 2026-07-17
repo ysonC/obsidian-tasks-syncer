@@ -3,6 +3,7 @@ import type TaskSyncerPlugin from "./main";
 import { playConfetti } from "./utils";
 import { TaskItem, TaskInputResult } from "./types";
 import { TaskTitleModal } from "./task-title-modal";
+import { sortTasksForSidebar } from "./task-sort";
 
 export const VIEW_TYPE_TODO_SIDEBAR = "tasks-syncer-sidebar";
 
@@ -65,14 +66,10 @@ export class TaskSidebarView extends ItemView {
 		this.taskContainer.empty();
 		this.taskContainer.createEl("h4", { text: this.plugin.providerSettings.selectedListTitle || "No task list selected" });
 		const tasks = this.plugin.taskCache?.tasks || [];
-		const visible = tasks
-			.filter(task => this.plugin.settings.showCompleted || task.status === "open")
-			.slice()
-			.sort((a, b) => {
-				if (a.status !== b.status) return a.status === "completed" ? 1 : -1;
-				if (!this.plugin.settings.showDueDate) return 0;
-				return (a.dueDate || "9999").localeCompare(b.dueDate || "9999");
-			});
+		const visible = sortTasksForSidebar(
+			tasks.filter(task => this.plugin.settings.showCompleted || task.status === "open"),
+			this.plugin.settings.showDueDate,
+		);
 		if (!visible.length) {
 			this.taskContainer.createEl("p", { text: "No tasks found" });
 			return;
