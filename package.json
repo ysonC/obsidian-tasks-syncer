@@ -1,6 +1,6 @@
 {
 	"name": "task-syncer-plugin",
-	"version": "1.6.0",
+	"version": "2.0.0",
 	"description": "Sync Microsoft To Do and TickTick tasks inside Obsidian.",
 	"main": "main.js",
 	"scripts": {
