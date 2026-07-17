@@ -18,7 +18,7 @@ npm ci
 npm run check
 ```
 
-Use a supported Node.js release. `npm run check` runs ESLint, isolated Vitest tests, TypeScript checking, and the production bundle.
+Use Node.js 22, matching CI and release automation. `npm run check` runs ESLint, isolated Vitest and release-validator tests, TypeScript checking, the production bundle, and release metadata/asset validation.
 
 ## Making changes
 
@@ -36,6 +36,20 @@ Use a supported Node.js release. `npm run check` runs ESLint, isolated Vitest te
 5. Update README or CHANGELOG when behavior, setup, privacy, or compatibility changes.
 
 Tests must mock Obsidian, SecretStorage, filesystem locations, and provider/network boundaries. Do not use a real vault, OS keychain, Microsoft account, TickTick account, or live API in automated tests. Manual provider testing must use disposable data and must never commit resulting files.
+
+## Releases
+
+Releases are created only from the current `main` commit after all checks pass. Keep the exact `x.y.z` version synchronized in `manifest.json` and `package.json`, and map that version to `manifest.minAppVersion` in `versions.json`. Do not prefix the version or Git tag with `v`.
+
+Before merging a release version, run:
+
+```bash
+npm ci
+npm run check
+npm audit --omit=dev
+```
+
+The build must produce the three Community Plugin install assets: `main.js`, `manifest.json`, and `styles.css`. The release workflow validates the metadata and assets, creates the exact version tag (for example, `2.1.0`), and uploads only those three files with generated release notes. A rerun safely skips an existing matching tag and release, or completes a release when the matching tag exists without one; it refuses to reuse a tag that points at another commit.
 
 ## Pull requests
 
