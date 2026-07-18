@@ -8,6 +8,12 @@ class MemoryStore {
 	remove = vi.fn(async () => { this.value = ""; });
 }
 
+function deferred<T>() {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>(done => { resolve = done; });
+	return { promise, resolve };
+}
+
 describe("TickTick OAuth", () => {
 	it("builds official authorization URL with exact redirect, required scopes, and state", () => {
 		const url = new URL(buildTickTickAuthorizationUrl("client", "obsidian://ticktick/callback", "state-123"));
@@ -23,6 +29,19 @@ describe("TickTick OAuth", () => {
 		await expect(auth.login()).rejects.toThrow("state"); expect(exchange).not.toHaveBeenCalled();
 	});
 
+	it("requires fixed redirect query parameters before token exchange", async () => {
+		const store = new MemoryStore(); const exchange = vi.fn();
+		const auth = new TickTickAuthProvider(
+			{ clientId: "id", clientSecret: "secret", redirectUrl: "obsidian://ticktick/callback?tenant=personal" },
+			store,
+			exchange as any,
+			async () => "obsidian://ticktick/callback?tenant=other&code=abc&state=expected",
+			() => "expected",
+		);
+		await expect(auth.login()).rejects.toThrow(/redirect/i);
+		expect(exchange).not.toHaveBeenCalled();
+	});
+
 	it("exchanges an authorization code using form encoding and Basic auth and caches no assumed refresh token", async () => {
 		const store = new MemoryStore();
 		const exchange = vi.fn(async (req: any) => ({ status: 200, json: { access_token: "access", expires_in: 3600 }, text: "" }));
@@ -35,5 +54,30 @@ describe("TickTick OAuth", () => {
 		expect(req.body).toContain("code=a+b"); expect(store.value).not.toContain("refresh");
 		await expect(auth.isAuthenticated()).resolves.toBe(true);
 		await auth.logout(); expect(store.remove).toHaveBeenCalled();
+	});
+
+	it("passes cancellation to authorization and does not cache a token after unload", async () => {
+		const store = new MemoryStore();
+		const exchange = deferred<any>();
+		const http = vi.fn(() => exchange.promise);
+		const controller = new AbortController();
+		const authorize = vi.fn(async (_url: string, redirect: string, signal?: AbortSignal) => {
+			expect(signal).toBe(controller.signal);
+			return `${redirect}?code=abc&state=expected`;
+		});
+		const auth = new TickTickAuthProvider(
+			{ clientId: "id", clientSecret: "secret", redirectUrl: "obsidian://ticktick/callback" },
+			store,
+			http as any,
+			authorize,
+			() => "expected",
+			controller.signal,
+		);
+		const login = auth.login();
+		await vi.waitFor(() => expect(http).toHaveBeenCalledOnce());
+		controller.abort();
+		exchange.resolve({ status: 200, json: { access_token: "access" }, text: "" });
+		await expect(login).rejects.toThrow(/abort/i);
+		expect(store.write).not.toHaveBeenCalled();
 	});
 });

@@ -1,4 +1,5 @@
 import { App, FuzzySuggestModal } from "obsidian";
+import { notify } from "./utils";
 
 export class GenericSelectModal<T> extends FuzzySuggestModal<T> {
 	items: T[];
@@ -25,7 +26,9 @@ export class GenericSelectModal<T> extends FuzzySuggestModal<T> {
 		return this.getText(item);
 	}
 
-	async onChooseItem(item: T): Promise<void> {
-		await this.onSelect(item);
+	onChooseItem(item: T): void {
+		void this.onSelect(item).catch(error => {
+			notify(error instanceof Error ? error.message : "The selected task action failed.", "error");
+		});
 	}
 }

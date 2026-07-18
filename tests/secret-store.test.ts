@@ -1,7 +1,4 @@
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
 	MemorySecretStore,
 	ObsidianSecretStore,
@@ -11,13 +8,15 @@ import {
 } from "../src/secret-store";
 import { migrateSettings } from "../src/settings-model";
 
-const directories: string[] = [];
-function tempDirectory(): string {
-	const directory = fs.mkdtempSync(path.join(os.tmpdir(), "task-syncer-secret-"));
-	directories.push(directory);
-	return directory;
+function memoryAdapter(entries: Record<string, string>) {
+	const files = new Map(Object.entries(entries));
+	return {
+		files,
+		exists: async (file: string) => files.has(file),
+		read: async (file: string) => files.get(file) ?? "",
+		remove: async (file: string) => { files.delete(file); },
+	};
 }
-afterEach(() => directories.splice(0).forEach(directory => fs.rmSync(directory, { recursive: true, force: true })));
 
 describe("SecretStore-backed persistence", () => {
 	it("clears secrets through the Obsidian 1.13.1 API surface", () => {
@@ -67,40 +66,36 @@ describe("SecretStore-backed persistence", () => {
 		expect(cleared).toBe(false);
 	});
 
-	it("rejects a conflicting SecretStorage client secret without clearing plaintext", async () => {
+	it("moves a conflicting legacy client secret to distinct SecretStorage before clearing plaintext", async () => {
 		const secrets = new MemorySecretStore();
 		const settings = migrateSettings({ clientSecret: "legacy" });
 		const id = settings.providers.microsoft.clientSecretId;
+		const conflictId = `${id}-legacy-conflict`;
 		secrets.write(id, "newer-secret");
 		let cleared = false;
-		await expect(migrateLegacyClientSecrets(
+		await migrateLegacyClientSecrets(
 			{ clientSecret: "legacy" },
 			settings,
 			secrets,
 			async () => { cleared = true; },
-		)).rejects.toThrow(/conflict.*microsoft/i);
+			{ microsoft: new SecretTokenStore(secrets, conflictId), ticktick: new SecretTokenStore(secrets, "ticktick-conflict") },
+		);
 		expect(secrets.read(id)).toBe("newer-secret");
-		expect(cleared).toBe(false);
+		expect(secrets.read(conflictId)).toBe("legacy");
+		expect(cleared).toBe(true);
 	});
 
-	it("preflights every provider conflict before writing any missing secret", async () => {
+	it("preserves every provider value securely before clearing all plaintext", async () => {
 		const settings = migrateSettings({
 			providers: {
 				microsoft: { clientSecret: "microsoft-legacy" },
 				ticktick: { clientSecret: "ticktick-legacy" },
 			},
 		});
-		const values = new Map<string, string>([
-			[settings.providers.ticktick.clientSecretId, "ticktick-different"],
-		]);
-		const writes: Array<[string, string]> = [];
-		const secrets = {
-			read: (id: string) => values.get(id) ?? null,
-			write: (id: string, value: string) => { writes.push([id, value]); values.set(id, value); },
-			remove: (id: string) => { values.delete(id); },
-		};
+		const secrets = new MemorySecretStore();
+		secrets.write(settings.providers.ticktick.clientSecretId, "ticktick-different");
 		let cleared = false;
-		await expect(migrateLegacyClientSecrets(
+		await migrateLegacyClientSecrets(
 			{
 				providers: {
 					microsoft: { clientSecret: "microsoft-legacy" },
@@ -110,31 +105,37 @@ describe("SecretStore-backed persistence", () => {
 			settings,
 			secrets,
 			async () => { cleared = true; },
-		)).rejects.toThrow(/conflict.*ticktick/i);
-		expect(writes).toEqual([]);
-		expect(cleared).toBe(false);
+			{
+				microsoft: new SecretTokenStore(secrets, `${settings.providers.microsoft.clientSecretId}-legacy-conflict`),
+				ticktick: new SecretTokenStore(secrets, `${settings.providers.ticktick.clientSecretId}-legacy-conflict`),
+			},
+		);
+		expect(secrets.read(settings.providers.microsoft.clientSecretId)).toBe("microsoft-legacy");
+		expect(secrets.read(settings.providers.ticktick.clientSecretId)).toBe("ticktick-different");
+		expect(secrets.read(`${settings.providers.ticktick.clientSecretId}-legacy-conflict`)).toBe("ticktick-legacy");
+		expect(cleared).toBe(true);
 	});
 
 	it("removes a legacy token file only after SecretStorage readback succeeds", async () => {
-		const directory = tempDirectory();
-		const legacyPath = path.join(directory, "token_cache.json");
-		fs.writeFileSync(legacyPath, "legacy-cache");
+		const legacyPath = "custom-config/plugins/task-syncer/token_cache.json";
+		const adapter = memoryAdapter({ [legacyPath]: "legacy-cache" });
 		const secrets = new MemorySecretStore();
 		const tokens = new SecretTokenStore(secrets, "task-syncer-plugin-microsoft-token-cache");
-		await migrateLegacyTokenFile(legacyPath, tokens);
+		await migrateLegacyTokenFile(adapter, legacyPath, tokens);
 		expect(await tokens.read()).toBe("legacy-cache");
-		expect(fs.existsSync(legacyPath)).toBe(false);
+		expect(adapter.files.has(legacyPath)).toBe(false);
 	});
 
-	it("does not overwrite an existing SecretStorage token or delete an unverified legacy file", async () => {
-		const directory = tempDirectory();
-		const legacyPath = path.join(directory, "microsoft-token-cache.json");
-		fs.writeFileSync(legacyPath, "older-file-cache");
+	it("moves a conflicting legacy token to distinct SecretStorage before deleting its plaintext file", async () => {
+		const legacyPath = "custom-config/plugins/task-syncer/microsoft-token-cache.json";
+		const adapter = memoryAdapter({ [legacyPath]: "older-file-cache" });
 		const secrets = new MemorySecretStore();
 		const tokens = new SecretTokenStore(secrets, "task-syncer-plugin-microsoft-token-cache");
+		const conflicts = new SecretTokenStore(secrets, "task-syncer-plugin-microsoft-token-cache-legacy-conflict");
 		await tokens.write("newer-secret-cache");
-		await migrateLegacyTokenFile(legacyPath, tokens);
+		await migrateLegacyTokenFile(adapter, legacyPath, tokens, conflicts);
 		expect(await tokens.read()).toBe("newer-secret-cache");
-		expect(fs.existsSync(legacyPath)).toBe(true);
+		expect(await conflicts.read()).toBe("older-file-cache");
+		expect(adapter.files.has(legacyPath)).toBe(false);
 	});
 });

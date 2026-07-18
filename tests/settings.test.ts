@@ -38,4 +38,26 @@ describe("settings migration", () => {
 		expect(migrated.autoSyncIntervalMinutes).toBe(10);
 		expect(migrated.autoSyncOnStartup).toBe(false);
 	});
+
+	it("whitelists fields, validates lists, and cannot retain plaintext secrets", () => {
+		const migrated = migrateSettings({
+			version: 3, provider: "ticktick", unknown: "discard me", clientSecret: "top-secret",
+			showCompleted: "yes", autoSyncIntervalMinutes: 0.001, timeZone: "Not/AZone",
+			providers: {
+				microsoft: { clientSecret: "nested-secret", taskLists: { id: "bad" } },
+				ticktick: { clientId: "id", taskLists: [{ id: "ok", title: "Inbox", token: "bad" }, null, { id: 2, title: "bad" }] },
+			},
+		});
+		expect(migrated).not.toHaveProperty("unknown");
+		expect(JSON.stringify(migrated)).not.toContain("top-secret");
+		expect(JSON.stringify(migrated)).not.toContain("nested-secret");
+		expect(migrated.showCompleted).toBe(true);
+		expect(migrated.autoSyncIntervalMinutes).toBe(10);
+		expect(migrated.providers.ticktick.taskLists).toEqual([{ id: "ok", title: "Inbox" }]);
+		expect(migrated.timeZone).not.toBe("Not/AZone");
+	});
+
+	it.each(["1", Number.NaN, Infinity, -1, 2, 600])("defaults invalid refresh interval %s", value => {
+		expect(migrateSettings({ version: 3, autoSyncIntervalMinutes: value, providers: {} }).autoSyncIntervalMinutes).toBe(10);
+	});
 });

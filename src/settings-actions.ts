@@ -28,6 +28,8 @@ export async function changeTimeZone(
 	value: string,
 	effects: SettingsEffects,
 ): Promise<void> {
+	try { new Intl.DateTimeFormat("en", { timeZone: value }).format(); }
+	catch { throw new Error(`Invalid IANA time zone: ${value}`); }
 	settings.timeZone = value;
 	await effects.rebuild();
 	await effects.save();

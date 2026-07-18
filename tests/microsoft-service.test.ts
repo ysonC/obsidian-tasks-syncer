@@ -17,4 +17,35 @@ describe("Microsoft adapter", () => {
 		expect(JSON.parse(request.mock.calls[0][0].body)).toEqual({ title: "Task" });
 		expect(JSON.parse(request.mock.calls[1][0].body)).toEqual({ dueDateTime: null });
 	});
+
+	it("follows safe Graph pagination for collections", async () => {
+		const request = vi.fn()
+			.mockResolvedValueOnce({ status: 200, json: { value: [{ id: "a", displayName: "A" }], "@odata.nextLink": "https://graph.microsoft.com/v1.0/me/todo/lists?$skiptoken=x" }, text: "" })
+			.mockResolvedValueOnce({ status: 200, json: { value: [{ id: "b", displayName: "B" }] }, text: "" });
+		const service = new MicrosoftTaskService(async () => "token", request);
+		expect(await service.fetchTaskLists()).toEqual([{ id: "a", title: "A" }, { id: "b", title: "B" }]);
+		expect(request).toHaveBeenCalledTimes(2);
+	});
+
+	it.each([
+		"http://graph.microsoft.com/v1.0/next",
+		"https://evil.example/steal",
+		"https://graph.microsoft.com:444/v1.0/next",
+		"https://attacker@graph.microsoft.com/v1.0/next",
+	])("rejects unsafe Graph continuation %s", async nextLink => {
+		const request = vi.fn().mockResolvedValue({ status: 200, json: { value: [], "@odata.nextLink": nextLink }, text: "" });
+		await expect(new MicrosoftTaskService(async () => "token", request).fetchTaskLists()).rejects.toThrow(/next.*link|pagination/i);
+		expect(request).toHaveBeenCalledTimes(1);
+	});
+
+	it("rejects cyclic Graph pagination", async () => {
+		const next = "https://graph.microsoft.com/v1.0/me/todo/lists";
+		const request = vi.fn().mockResolvedValue({ status: 200, json: { value: [], "@odata.nextLink": next }, text: "" });
+		await expect(new MicrosoftTaskService(async () => "token", request).fetchTaskLists()).rejects.toThrow(/cycle/i);
+	});
+
+	it("rejects malformed list collections with provider context", async () => {
+		const request = vi.fn().mockResolvedValue({ status: 200, json: { value: {} }, text: "" });
+		await expect(new MicrosoftTaskService(async () => "token", request).fetchTaskLists()).rejects.toThrow(/Microsoft.*lists/i);
+	});
 });

@@ -3,13 +3,13 @@ import { resolvePluginDirectory } from "../src/plugin-path";
 
 describe("plugin directory resolution", () => {
 	it("uses Obsidian's actual manifest directory instead of assuming the plugin ID", () => {
-		expect(resolvePluginDirectory("/vault", ".obsidian/plugins/obsidian-tasks-syncer", "task-syncer-plugin"))
-			.toBe("/vault/.obsidian/plugins/obsidian-tasks-syncer");
+		expect(resolvePluginDirectory(".obsidian/plugins/obsidian-tasks-syncer", "task-syncer-plugin", ".obsidian"))
+			.toBe(".obsidian/plugins/obsidian-tasks-syncer");
 	});
 
 	it("falls back to the config directory and plugin ID when manifest.dir is unavailable", () => {
-		expect(resolvePluginDirectory("/vault", undefined, "task-syncer"))
-			.toBe("/vault/.obsidian/plugins/task-syncer");
+		expect(resolvePluginDirectory(undefined, "task-syncer", ".config/obsidian"))
+			.toBe(".config/obsidian/plugins/task-syncer");
 	});
 }
 );

@@ -13,7 +13,6 @@ export class TaskSyncerSettingTab extends PluginSettingTab {
 		containerEl.empty();
 		const provider = this.plugin.settings.provider;
 		const config = this.plugin.providerSettings;
-		new Setting(containerEl).setName("Task Syncer").setHeading();
 		new Setting(containerEl).setName("Provider and account").setHeading();
 
 		new Setting(containerEl)
@@ -40,7 +39,7 @@ export class TaskSyncerSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Redirect URL")
 			.setDesc("Must exactly match the URL registered with the provider.")
-			.addText(text => text.setPlaceholder("http://localhost:5000").setValue(config.redirectUrl).onChange(value =>
+			.addText(text => text.setPlaceholder("Redirect URL").setValue(config.redirectUrl).onChange(value =>
 				this.run("Redirect URL update failed", () => this.plugin.updateProviderCredential("redirectUrl", value.trim()))));
 
 		new Setting(containerEl)
@@ -54,21 +53,17 @@ export class TaskSyncerSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Task lists")
 			.setDesc("Load lists after connecting, then select the list used by commands.")
-			.addButton(button => button.setButtonText("Load lists").onClick(async () => {
-				await this.plugin.loadAvailableTaskLists();
-				this.display();
+			.addButton(button => button.setButtonText("Load lists").onClick(() => {
+				void this.run("Load lists failed", async () => { await this.plugin.loadAvailableTaskLists(); this.display(); });
 			}));
 
 		new Setting(containerEl).setName("Selected task list").addDropdown(drop => {
 			drop.addOption("", "Select a task list");
-			config.taskLists.forEach(list => drop.addOption(list.id, list.title));
+			config.taskLists.forEach(list => { drop.addOption(list.id, list.title); });
 			drop.setValue(config.selectedListId);
 			drop.onChange(value => this.run("Task list update failed", async () => {
 				const list = config.taskLists.find(item => item.id === value);
-				config.selectedListId = value;
-				config.selectedListTitle = list?.title || "";
-				this.plugin.taskCache = null;
-				await this.plugin.saveSettings();
+				await this.plugin.selectTaskList(value, list?.title || "");
 			}));
 		});
 
@@ -102,9 +97,7 @@ export class TaskSyncerSettingTab extends PluginSettingTab {
 			.setDesc(provider === "ticktick" ? "Loads TickTick's documented completed-task endpoint. Completed TickTick tasks cannot be reopened." : "Include completed tasks in the sidebar.")
 			.addToggle(toggle => toggle.setValue(this.plugin.settings.showCompleted).onChange(value =>
 				this.run("Setting update failed", async () => {
-					this.plugin.settings.showCompleted = value;
-					this.plugin.taskCache = null;
-					await this.plugin.saveSettings();
+					await this.plugin.updateShowCompleted(value);
 				})));
 
 		new Setting(containerEl).setName("Show due dates").addToggle(toggle =>
@@ -122,7 +115,7 @@ export class TaskSyncerSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Confetti")
 			.addDropdown(drop => drop
-				.addOption("regular", "Regular").addOption("big", "Big").addOption("superbig", "Super BIG")
+				.addOption("regular", "Regular").addOption("big", "Big").addOption("superbig", "Super big")
 				.setValue(this.plugin.settings.confettiType)
 				.onChange(value => this.run("Confetti setting failed", async () => {
 					this.plugin.settings.confettiType = value as "regular" | "big" | "superbig";

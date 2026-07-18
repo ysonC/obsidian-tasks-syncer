@@ -11,6 +11,13 @@ function timers() {
 }
 
 describe("AutoSyncController", () => {
+	it.each([Number.NaN, Infinity, -1, 2, 600])("refuses invalid interval %s", value => {
+		const setInterval = vi.fn(() => 1);
+		const controller = new AutoSyncController(async () => {}, () => true, () => {}, { setInterval, clearInterval: vi.fn() });
+		controller.configure(value);
+		expect(setInterval).not.toHaveBeenCalled();
+	});
+
 	it("schedules the configured interval and replaces an existing schedule", () => {
 		const clock = timers();
 		const controller = new AutoSyncController(async () => {}, () => true, () => {}, clock);

@@ -1,81 +1,51 @@
 import { Modal, App } from "obsidian";
 import { TaskInputResult } from "./types";
 
-export function buildTaskInputResult(title: string, date: string, editing: boolean): TaskInputResult {
-	const result: TaskInputResult = { title: title.trim() };
-	if (date) result.dueDate = `${date}T00:00:00`;
-	else if (editing) result.dueDate = "";
+export function buildTaskInputResult(title: string, date: string, editing: boolean, dateChanged = editing): TaskInputResult {
+	const trimmed = title.trim();
+	if (!trimmed) throw new Error("Task title cannot be blank.");
+	const result: TaskInputResult = { title: trimmed };
+	if (dateChanged && date) result.dueDate = `${date}T00:00:00`;
+	else if (dateChanged && editing) result.dueDate = "";
 	return result;
 }
 
-/**
- * A simple modal that prompts the user to enter a task title.
- * The modal is centered, and the task is submitted when the user presses Enter.
- */
 export class TaskTitleModal extends Modal {
-	result: string;
-	onSubmit: (result: TaskInputResult) => void;
-	private initial?: TaskInputResult;
-
-	/**
-	 * Constructs the modal.
-	 * @param app - The Obsidian app instance.
-	 * @param onSubmit - A callback that receives the entered task title.
-	 * @param initial - Optional initial values to pre-populate the inputs.
-	 */
+	private readonly initial?: TaskInputResult;
 	constructor(
 		app: App,
-		onSubmit: (result: TaskInputResult) => void,
+		private readonly onSubmit: (result: TaskInputResult) => void | Promise<void>,
 		initial?: TaskInputResult,
-	) {
-		super(app);
-		this.onSubmit = onSubmit;
-		this.initial = initial;
-	}
+	) { super(app); this.initial = initial; }
 
-	/**
-	 * Called when the modal is opened. Renders the input UI and centers it.
-	 */
-	onOpen() {
+	onOpen(): void {
 		const { contentEl } = this;
-
-		contentEl.style.display = "flex";
-		contentEl.style.flexDirection = "column";
-		contentEl.style.alignItems = "center";
-		contentEl.style.justifyContent = "center";
-
-		const inputEl = contentEl.createEl("input", {
-			type: "text",
-			placeholder: "Task Title",
-			value: this.initial?.title ?? "",
+		contentEl.addClass("task-syncer-modal");
+		const form = contentEl.createEl("form", { cls: "task-syncer-task-form" });
+		const inputEl = form.createEl("input", { type: "text", cls: "task-syncer-task-input", placeholder: "Task title", value: this.initial?.title ?? "" });
+		const initialDate = this.initial?.dueDate?.slice(0, 10) ?? "";
+		const dueInput = form.createEl("input", { type: "date", cls: "task-syncer-task-input", value: initialDate });
+		dueInput.setAttr("aria-label", "Due date (optional)");
+		const errorEl = form.createDiv({ cls: "task-syncer-form-error" });
+		errorEl.setAttr("role", "alert");
+		const actions = form.createDiv({ cls: "task-syncer-modal-actions" });
+		const cancel = actions.createEl("button", { text: "Cancel", type: "button" });
+		const save = actions.createEl("button", { text: "Save", type: "submit", cls: "mod-cta" });
+		cancel.addEventListener("click", () => this.close());
+		form.addEventListener("submit", event => {
+			event.preventDefault();
+			errorEl.empty();
+			let result: TaskInputResult;
+			try { result = buildTaskInputResult(inputEl.value, dueInput.value, this.initial !== undefined, dueInput.value !== initialDate); }
+			catch (error) { errorEl.setText(error instanceof Error ? error.message : "Could not save task."); inputEl.focus(); return; }
+			save.disabled = true;
+			void Promise.resolve(this.onSubmit(result)).then(() => this.close(), error => {
+				save.disabled = false;
+				errorEl.setText(error instanceof Error ? error.message : "Could not save task.");
+			});
 		});
-
-		inputEl.style.width = "100%";
 		inputEl.focus();
-
-		const dueInput = contentEl.createEl("input", {
-			type: "date",
-			placeholder: "Due Date (optional)",
-			value: this.initial?.dueDate
-				? this.initial.dueDate.slice(0, 10)
-				: "",
-		});
-		dueInput.style.width = "100%";
-
-		inputEl.onkeydown = (e) => {
-			if (e.key === "Enter") {
-				e.preventDefault();
-				e.stopPropagation();
-				this.close();
-				this.onSubmit(buildTaskInputResult(inputEl.value, dueInput.value, this.initial !== undefined));
-			}
-		};
 	}
 
-	/**
-	 * Called when the modal is closed. Clears the content.
-	 */
-	onClose() {
-		this.contentEl.empty();
-	}
+	onClose(): void { this.contentEl.empty(); }
 }

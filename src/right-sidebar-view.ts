@@ -1,151 +1,108 @@
 import { ItemView, setIcon, WorkspaceLeaf } from "obsidian";
 import type TaskSyncerPlugin from "./main";
 import { playConfetti } from "./utils";
-import { TaskItem, TaskInputResult } from "./types";
+import { TaskItem, TaskUpdate } from "./types";
 import { TaskTitleModal } from "./task-title-modal";
 import { sortTasksForSidebar } from "./task-sort";
+import { calendarDateInTimeZone, dueDateLabel } from "./date-only";
 
 export const VIEW_TYPE_TODO_SIDEBAR = "tasks-syncer-sidebar";
 
 export class TaskSidebarView extends ItemView {
-	plugin: TaskSyncerPlugin;
-	contentContainer: HTMLElement;
-	taskContainer: HTMLElement;
+	private contentContainer: HTMLElement;
+	private taskContainer: HTMLElement;
+	constructor(leaf: WorkspaceLeaf, private readonly plugin: TaskSyncerPlugin) { super(leaf); }
+	getViewType(): string { return VIEW_TYPE_TODO_SIDEBAR; }
+	getDisplayText(): string { return "Task Syncer"; }
+	getIcon(): string { return "list-todo"; }
 
-	constructor(leaf: WorkspaceLeaf, plugin: TaskSyncerPlugin) {
-		super(leaf);
-		this.plugin = plugin;
-	}
-	getViewType() { return VIEW_TYPE_TODO_SIDEBAR; }
-	getDisplayText() { return "Task Syncer"; }
-	getIcon() { return "list-todo"; }
-
-	async onOpen() {
-		const view = this.containerEl.querySelector(".view-content") as HTMLElement | null;
-		this.contentContainer = (view || this.containerEl).createDiv("tasks-syncer-content");
+	async onOpen(): Promise<void> {
+		this.contentContainer = this.containerEl.createDiv("task-syncer-content");
 		this.setupNavHeader();
-		this.taskContainer = this.contentContainer.createDiv("tasks-group");
+		this.taskContainer = this.contentContainer.createDiv("task-syncer-tasks");
 		await this.refresh(true);
 	}
 
-	private setupNavHeader() {
-		const buttons = this.contentContainer.createDiv("nav-header").createDiv({ cls: "nav-buttons" });
-		const refresh = buttons.createEl("a", { cls: "nav-action-button" });
-		setIcon(refresh, "refresh-cw");
-		refresh.title = "Refresh tasks";
-		refresh.onclick = () => this.refresh(true);
+	private setupNavHeader(): void {
+		const buttons = this.contentContainer.createDiv("task-syncer-nav");
+		const refresh = buttons.createEl("button", { cls: "task-syncer-nav-button", type: "button" });
+		setIcon(refresh, "refresh-cw"); refresh.setAttr("aria-label", "Refresh tasks"); refresh.title = "Refresh tasks";
+		refresh.addEventListener("click", () => { void this.refresh(true); });
 		this.toggle(buttons, "showCompleted", { on: "eye-off", off: "eye" }, "Toggle completed tasks");
 		this.toggle(buttons, "showDueDate", { on: "calendar", off: "calendar-arrow-up" }, "Toggle due dates");
 	}
 
-	private toggle(
-		parent: HTMLElement,
-		key: "showCompleted" | "showDueDate",
-		icons: { on: string; off: string },
-		title: string,
-	) {
-		const button = parent.createEl("a", { cls: "nav-action-button" });
-		button.title = title;
-		const updateIcon = () => setIcon(button, this.plugin.settings[key] ? icons.off : icons.on);
+	private toggle(parent: HTMLElement, key: "showCompleted" | "showDueDate", icons: { on: string; off: string }, title: string): void {
+		const button = parent.createEl("button", { cls: "task-syncer-nav-button", type: "button" });
+		button.title = title; button.setAttr("aria-label", title);
+		const updateIcon = (): void => setIcon(button, this.plugin.settings[key] ? icons.off : icons.on);
 		updateIcon();
-		button.onclick = async () => {
+		button.addEventListener("click", () => { void (async () => {
 			try {
-				this.plugin.settings[key] = !this.plugin.settings[key];
-				if (key === "showCompleted") this.plugin.taskCache = null;
-				await this.plugin.saveSettings();
-				updateIcon();
-				await this.refresh(key === "showCompleted");
-			} catch (error) {
-				this.plugin.reportError("Sidebar setting update failed", error);
-			}
-		};
+				const enabled = !this.plugin.settings[key];
+				if (key === "showCompleted") await this.plugin.updateShowCompleted(enabled);
+				else { this.plugin.settings.showDueDate = enabled; await this.plugin.saveSettings(); }
+				updateIcon(); await this.refresh(key === "showCompleted");
+			} catch (error) { this.plugin.reportError("Sidebar setting update failed", error); }
+		})(); });
 	}
 
-	async render() {
+	async render(): Promise<void> {
 		if (!this.taskContainer) return;
 		this.taskContainer.empty();
 		this.taskContainer.createEl("h4", { text: this.plugin.providerSettings.selectedListTitle || "No task list selected" });
-		const tasks = this.plugin.taskCache?.tasks || [];
-		const visible = sortTasksForSidebar(
-			tasks.filter(task => this.plugin.settings.showCompleted || task.status === "open"),
-			this.plugin.settings.showDueDate,
-		);
-		if (!visible.length) {
-			this.taskContainer.createEl("p", { text: "No tasks found" });
-			return;
-		}
-		visible.forEach(task => this.renderTask(task));
+		const today = calendarDateInTimeZone(new Date(), this.plugin.settings.timeZone);
+		const visible = sortTasksForSidebar((this.plugin.taskCache?.tasks ?? []).filter(task => this.plugin.settings.showCompleted || task.status === "open"), this.plugin.settings.showDueDate, today);
+		if (!visible.length) { this.taskContainer.createEl("p", { text: "No tasks found" }); return; }
+		visible.forEach(task => this.renderTask(task, today));
 	}
 
-	private renderTask(task: TaskItem) {
-		const line = this.taskContainer.createEl("div", { cls: "task-line" });
-		const checkbox = line.createEl("input", { type: "checkbox" }) as HTMLInputElement;
-		checkbox.checked = task.status === "completed";
-		const canReopen = this.plugin.api.capabilities.reopenTask && !!this.plugin.api.reopenTask;
-		if (checkbox.checked && !canReopen) {
-			checkbox.disabled = true;
-			checkbox.title = "TickTick's Open API does not support reopening completed tasks.";
-		}
-		const details = line.createDiv("task-details");
-		details.createDiv({ cls: "task-title", text: task.title });
-		details.createDiv(this.formatDueDate(task.dueDate?.slice(0, 10) || "", task.status));
+	private renderTask(task: TaskItem, today: string): void {
+		const context = this.plugin.captureMutationContext();
+		const line = this.taskContainer.createDiv({ cls: "task-syncer-task-line" });
+		const checkbox = line.createEl("input", { type: "checkbox" }); checkbox.checked = task.status === "completed"; checkbox.setAttr("aria-label", `Mark ${task.title} ${checkbox.checked ? "open" : "completed"}`);
+		const canReopen = this.plugin.api.capabilities.reopenTask && this.plugin.api.reopenTask !== undefined;
+		if (checkbox.checked && !canReopen) { checkbox.disabled = true; checkbox.title = "TickTick's open API does not support reopening completed tasks."; }
+		const details = line.createDiv("task-syncer-task-details");
+		details.createDiv({ cls: "task-syncer-task-title", text: task.title });
+		const date = task.dueDate?.slice(0, 10) ?? "";
+		const label = this.plugin.settings.showDueDate ? dueDateLabel(date, task.status, today) : "";
+		details.createDiv({ cls: this.dueDateClass(label), text: label });
 		details.addEventListener("dblclick", () => this.editTask(task));
-		checkbox.addEventListener("change", async () => {
+		checkbox.addEventListener("change", () => { void (async () => {
 			checkbox.disabled = true;
 			try {
-				if (checkbox.checked) {
-					await this.plugin.api.completeTask(task.listId, task.id);
-					if (this.plugin.settings.enableConfetti) playConfetti(this.plugin.settings.confettiType);
-				} else if (this.plugin.api.reopenTask) {
-					await this.plugin.api.reopenTask(task.listId, task.id);
-				} else {
-					throw new Error("This provider cannot reopen completed tasks.");
-				}
+				await this.plugin.runMutationInContext(context, async service => {
+					if (checkbox.checked) { await service.completeTask(task.listId, task.id); if (this.plugin.settings.enableConfetti) playConfetti(this.plugin.settings.confettiType); }
+					else if (service.reopenTask) await service.reopenTask(task.listId, task.id);
+					else throw new Error("This provider cannot reopen completed tasks.");
+				});
 				await this.refresh(false);
-			} catch (error) {
-				checkbox.checked = !checkbox.checked;
-				this.plugin.reportError("Task status update failed", error);
-			} finally {
-				if (!checkbox.checked || canReopen) checkbox.disabled = false;
-			}
-		});
+			} catch (error) { checkbox.checked = !checkbox.checked; this.plugin.reportError("Task status update failed", error); }
+			finally { if (!checkbox.checked || canReopen) checkbox.disabled = false; }
+		})(); });
 	}
 
-	private editTask(task: TaskItem) {
-		new TaskTitleModal(this.app, async (result: TaskInputResult) => {
-			try {
-				await this.plugin.api.updateTask(task.listId, task.id, { title: result.title, dueDate: result.dueDate });
-				await this.refresh(false);
-			} catch (error) {
-				this.plugin.reportError("Task edit failed", error);
-			}
+	private dueDateClass(label: string): string {
+		if (label === "Today") return "task-syncer-due-date task-syncer-due-date-now";
+		if (label === "Tomorrow") return "task-syncer-due-date task-syncer-due-date-tomorrow";
+		if (label === "Past due") return "task-syncer-due-date task-syncer-due-date-past";
+		return "task-syncer-due-date";
+	}
+
+	private editTask(task: TaskItem): void {
+		const context = this.plugin.captureMutationContext();
+		new TaskTitleModal(this.app, async result => {
+			const update: TaskUpdate = { title: result.title }; if (result.dueDate !== undefined) update.dueDate = result.dueDate;
+			await this.plugin.runMutationInContext(context, service => service.updateTask(task.listId, task.id, update)); await this.refresh(false);
 		}, { title: task.title, dueDate: task.dueDate }).open();
 	}
 
-	private async refresh(spin: boolean) {
+	private async refresh(spin: boolean): Promise<void> {
 		let wrapper: HTMLElement | undefined;
-		if (spin && this.taskContainer) {
-			this.taskContainer.empty();
-			wrapper = this.taskContainer.createDiv("spinner-wrapper");
-			wrapper.createDiv("loading-spinner");
-		}
-		try { await this.plugin.refreshTaskCache(); }
+		if (spin && this.taskContainer) { this.taskContainer.empty(); wrapper = this.taskContainer.createDiv("task-syncer-spinner-wrapper"); wrapper.createDiv("task-syncer-loading-spinner"); }
+		try { await this.plugin.refreshViewAndCache(); }
 		catch (error) { this.plugin.reportError("Task refresh failed", error); }
 		finally { wrapper?.remove(); await this.render(); }
 	}
-
-	private formatDueDate(date: string, status: string) {
-		if (!this.plugin.settings.showDueDate) return { text: "", cls: "task-due-date" };
-		const today = new Date().toISOString().slice(0, 10);
-		const next = new Date();
-		next.setDate(next.getDate() + 1);
-		const tomorrow = next.toISOString().slice(0, 10);
-		if (status === "completed") return { text: date, cls: "task-due-date" };
-		if (date === today) return { text: "Today", cls: "task-due-date-now" };
-		if (date === tomorrow) return { text: "Tomorrow", cls: "task-due-date-tomorrow" };
-		if (date && date < today) return { text: "Past Due", cls: "task-due-date-past" };
-		return { text: date, cls: "task-due-date" };
-	}
-
-	async onClose() {}
 }

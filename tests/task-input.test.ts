@@ -8,4 +8,13 @@ describe("task input result", () => {
 	it("omits the due date when creating a task without one", () => {
 		expect(buildTaskInputResult(" Task ", "", false)).toEqual({ title: "Task" });
 	});
+	it("omits an unchanged timed due date on title-only edits", () => {
+		expect(buildTaskInputResult("New title", "2026-07-18", true, false)).toEqual({ title: "New title" });
+	});
+	it("distinguishes an explicitly cleared date", () => {
+		expect(buildTaskInputResult("Task", "", true, true)).toEqual({ title: "Task", dueDate: "" });
+	});
+	it("rejects a blank title", () => {
+		expect(() => buildTaskInputResult("   ", "", false)).toThrow(/title/i);
+	});
 });

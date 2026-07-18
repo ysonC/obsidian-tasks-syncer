@@ -34,23 +34,28 @@ export async function deleteCompletedTasksWithConfirmation(
 	listId: string,
 	listTitle: string,
 	confirm: ConfirmDeletion,
+	assertCurrent: () => void = () => undefined,
 ): Promise<number> {
 	const completed = (await service.fetchTasks(listId, true)).filter(task => task.status === "completed");
+	assertCurrent();
 	if (!completed.length) return 0;
 	const accepted = await confirm({
 		provider: provider === "microsoft" ? "Microsoft To Do" : "TickTick",
 		list: listTitle || listId,
 		count: completed.length,
 	});
+	assertCurrent();
 	if (!accepted) return 0;
 	let deleted = 0;
 	for (const task of completed) {
+		assertCurrent();
 		try {
 			await service.deleteTask(listId, task.id);
 			deleted++;
 		} catch (error) {
 			throw new DeleteCompletedTasksError(deleted, completed.length, error);
 		}
+		assertCurrent();
 	}
 	return completed.length;
 }
