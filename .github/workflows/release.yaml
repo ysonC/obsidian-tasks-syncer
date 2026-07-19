@@ -4,17 +4,9 @@ on:
   push:
     branches: [main]
     paths:
-      - "src/**"
-      - "styles.css"
       - "manifest.json"
       - "versions.json"
       - "package.json"
-      - "package-lock.json"
-      - "tsconfig.json"
-      - "esbuild.config.mjs"
-      - "version-bump.mjs"
-      - "scripts/**"
-      - ".github/workflows/release.yaml"
   workflow_dispatch:
 
 permissions: {}
@@ -30,6 +22,7 @@ jobs:
       contents: read
     outputs:
       version: ${{ steps.release_metadata.outputs.version }}
+      should_release: ${{ steps.release_intent.outputs.should_release }}
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -42,19 +35,67 @@ jobs:
           node-version: "22"
           cache: npm
 
+      - name: Confirm deliberate release version change
+        id: release_intent
+        shell: bash
+        run: |
+          set -euo pipefail
+          CURRENT_VERSION=$(node -p "require('./manifest.json').version")
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            printf 'should_release=true\n' >> "$GITHUB_OUTPUT"
+            printf 'current_version=%s\n' "$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+            echo "Manual release run requested for $CURRENT_VERSION."
+            exit 0
+          fi
+
+          BEFORE_SHA="${{ github.event.before }}"
+          if [[ -z "$BEFORE_SHA" || "$BEFORE_SHA" =~ ^0+$ ]]; then
+            printf 'should_release=false\n' >> "$GITHUB_OUTPUT"
+            printf 'current_version=%s\n' "$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+            echo "No previous main commit is available; refusing automatic release."
+            exit 0
+          fi
+
+          PREVIOUS_MANIFEST=$(git show "$BEFORE_SHA:manifest.json" 2>/dev/null || true)
+          if [[ -z "$PREVIOUS_MANIFEST" ]]; then
+            printf 'should_release=false\n' >> "$GITHUB_OUTPUT"
+            printf 'current_version=%s\n' "$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+            echo "Previous manifest.json is unavailable; refusing automatic release."
+            exit 0
+          fi
+
+          PREVIOUS_VERSION=$(node -e 'const fs = require("fs"); console.log(JSON.parse(fs.readFileSync(0, "utf8")).version)' <<< "$PREVIOUS_MANIFEST")
+          printf 'current_version=%s\n' "$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          printf 'previous_version=%s\n' "$PREVIOUS_VERSION" >> "$GITHUB_OUTPUT"
+
+          if [[ "$CURRENT_VERSION" == "$PREVIOUS_VERSION" ]]; then
+            printf 'should_release=false\n' >> "$GITHUB_OUTPUT"
+            echo "manifest.json version did not change ($CURRENT_VERSION); skipping release."
+            exit 0
+          fi
+
+          printf 'should_release=true\n' >> "$GITHUB_OUTPUT"
+          echo "Release intent detected: $PREVIOUS_VERSION -> $CURRENT_VERSION."
+
       - name: Install dependencies
+        if: steps.release_intent.outputs.should_release == 'true'
         run: npm ci
 
       - name: Run full checks and production build
+        if: steps.release_intent.outputs.should_release == 'true'
         run: npm run check
 
       - name: Audit all dependencies
+        if: steps.release_intent.outputs.should_release == 'true'
         run: npm audit
 
       - name: Audit production dependencies
+        if: steps.release_intent.outputs.should_release == 'true'
         run: npm audit --omit=dev
 
       - name: Record release metadata
+        if: steps.release_intent.outputs.should_release == 'true'
         id: release_metadata
         shell: bash
         run: |
@@ -63,6 +104,7 @@ jobs:
           printf 'version=%s\n' "$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Verify release source is current main
+        if: steps.release_intent.outputs.should_release == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -74,6 +116,7 @@ jobs:
           fi
 
       - name: Preserve verified release assets
+        if: steps.release_intent.outputs.should_release == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-assets
@@ -86,6 +129,7 @@ jobs:
 
   release:
     needs: verify
+    if: needs.verify.outputs.should_release == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
