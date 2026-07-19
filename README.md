@@ -4,6 +4,10 @@ Task Syncer connects an Obsidian **desktop** vault to either Microsoft To Do or 
 
 Task Syncer requires either a Microsoft account or a TickTick account, plus a user-created OAuth application for the selected provider.
 
+## AI assistance disclosure
+
+This project is built and maintained with help from AI tooling alongside human review and decision-making.
+
 ## Installation
 
 Task Syncer requires Obsidian 1.11.4 or newer and is desktop-only.
