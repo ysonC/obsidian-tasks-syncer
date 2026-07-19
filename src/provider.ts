@@ -12,7 +12,12 @@ import { ProviderId, TaskService } from "./types";
 export interface ProviderRuntime { id: ProviderId; auth: AuthProvider; tasks: TaskService; }
 export const obsidianHttpClient: HttpClient = async <T>(request: Parameters<HttpClient>[0]) => {
 	const response = await requestUrl(request);
-	return { status: response.status, json: response.json as T, text: response.text };
+	const text = response.text ?? "";
+	return {
+		status: response.status,
+		json: text.trim() === "" ? undefined as T : response.json as T,
+		text,
+	};
 };
 
 export function createProviderRuntime(id: ProviderId, settings: TaskSyncerSettings, secrets: SecretStore, http: HttpClient = obsidianHttpClient, signal?: AbortSignal): ProviderRuntime {
