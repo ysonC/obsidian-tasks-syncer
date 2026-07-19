@@ -3,7 +3,11 @@ import { DeleteConfirmationDetails } from "./delete-completed";
 
 export class DeleteCompletedConfirmationModal extends Modal {
 	private settled = false;
-	constructor(app: App, private details: DeleteConfirmationDetails, private resolve: (confirmed: boolean) => void) {
+	constructor(
+		app: App,
+		private details: DeleteConfirmationDetails,
+		private resolve: (confirmed: boolean) => void,
+	) {
 		super(app);
 	}
 	onOpen(): void {
@@ -12,8 +16,18 @@ export class DeleteCompletedConfirmationModal extends Modal {
 			text: `Delete ${this.details.count} completed task${this.details.count === 1 ? "" : "s"} from ${this.details.provider} list “${this.details.list}”? This cannot be undone.`,
 		});
 		new Setting(this.contentEl)
-			.addButton(button => button.setButtonText("Cancel").onClick(() => this.finish(false)))
-			.addButton(button => button.setButtonText("Delete").setWarning().onClick(() => this.finish(true)));
+			.addButton((button) =>
+				button
+					.setButtonText("Cancel")
+					.onClick(() => this.finish(false)),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText("Delete")
+					.setDestructive()
+					.setCta()
+					.onClick(() => this.finish(true)),
+			);
 	}
 	onClose(): void {
 		this.contentEl.empty();
@@ -27,6 +41,11 @@ export class DeleteCompletedConfirmationModal extends Modal {
 	}
 }
 
-export function confirmCompletedTaskDeletion(app: App, details: DeleteConfirmationDetails): Promise<boolean> {
-	return new Promise(resolve => new DeleteCompletedConfirmationModal(app, details, resolve).open());
+export function confirmCompletedTaskDeletion(
+	app: App,
+	details: DeleteConfirmationDetails,
+): Promise<boolean> {
+	return new Promise((resolve) =>
+		new DeleteCompletedConfirmationModal(app, details, resolve).open(),
+	);
 }
