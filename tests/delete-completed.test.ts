@@ -37,6 +37,18 @@ describe("delete completed task orchestration", () => {
 		expect(tasks.deleteTask).not.toHaveBeenCalled();
 	});
 
+	it("fails closed if provider context changes while confirmation is open", async () => {
+		const tasks = service([{ id: "1", title: "Done", status: "completed" }]);
+		let current = true;
+		const assertCurrent = vi.fn(() => {
+			if (!current) throw new Error("Task context changed");
+		});
+		const confirm = vi.fn(async () => { current = false; return true; });
+		await expect(deleteCompletedTasksWithConfirmation(tasks, "microsoft", "list-id", "Inbox", confirm, assertCurrent))
+			.rejects.toThrow(/context changed/i);
+		expect(tasks.deleteTask).not.toHaveBeenCalled();
+	});
+
 	it("stops after a failed delete and reports the partial outcome", async () => {
 		const tasks = service([
 			{ id: "1", title: "First", status: "completed" },

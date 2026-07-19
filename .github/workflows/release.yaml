@@ -48,6 +48,9 @@ jobs:
       - name: Run full checks and production build
         run: npm run check
 
+      - name: Audit all dependencies
+        run: npm audit
+
       - name: Audit production dependencies
         run: npm audit --omit=dev
 
@@ -130,8 +133,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          required_assets=(main.js manifest.json styles.css)
-
           REMOTE_TAG=$(git ls-remote --tags origin "refs/tags/$VERSION")
           if [[ -n "$REMOTE_TAG" ]]; then
             git fetch --force origin "refs/tags/$VERSION:refs/tags/$VERSION"
@@ -153,51 +154,52 @@ jobs:
             exit 1
           fi
 
-          if [[ "$RELEASE_EXISTS" == true && "$TAG_EXISTS" != true ]]; then
-            echo "Release $VERSION exists without the expected exact remote tag."
-            exit 1
+          rm -rf existing-release
+          mkdir existing-release
+          if [[ "$RELEASE_EXISTS" == true ]] && jq -e '.assets | length > 0' release.json >/dev/null; then
+            gh release download "$VERSION" --dir existing-release
           fi
 
-          RELEASE_COMPLETE=false
-          if [[ "$RELEASE_EXISTS" == true ]]; then
-            gh api "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" \
-              --jq '.assets[] | [.name, .size] | @tsv' > asset-rows.txt
-            mapfile -t ASSET_ROWS < asset-rows.txt
-            if [[ ${#ASSET_ROWS[@]} -eq ${#required_assets[@]} ]]; then
-              RELEASE_COMPLETE=true
-              for required in "${required_assets[@]}"; do
-                MATCHED=false
-                for row in "${ASSET_ROWS[@]}"; do
-                  IFS=$'\t' read -r name size <<< "$row"
-                  if [[ "$name" == "$required" && "$size" =~ ^[1-9][0-9]*$ ]]; then
-                    MATCHED=true
-                    break
-                  fi
-                done
-                if [[ "$MATCHED" != true ]]; then
-                  RELEASE_COMPLETE=false
-                  break
-                fi
-              done
-            fi
-          fi
+          export TAG_EXISTS TAG_COMMIT RELEASE_EXISTS
+          node scripts/evaluate-release-state.mjs \
+            release.json release-assets existing-release > release-state.txt
+          cat release-state.txt >> "$GITHUB_OUTPUT"
+          ACTION=$(grep '^action=' release-state.txt | cut -d= -f2)
+          REASON=$(grep '^reason=' release-state.txt | cut -d= -f2- || true)
 
-          if [[ "$TAG_EXISTS" == true && "$RELEASE_COMPLETE" == true ]]; then
-            echo "Tag and complete GitHub release $VERSION already exist; skipping safely."
-            SKIP_RELEASE=true
-          elif [[ "$TAG_EXISTS" == true && "$TAG_COMMIT" != "$GITHUB_SHA" ]]; then
-            echo "Incomplete release recovery refused: $VERSION points to $TAG_COMMIT, not $GITHUB_SHA."
-            exit 1
-          else
-            SKIP_RELEASE=false
-          fi
+          case "$ACTION" in
+            skip)
+              echo "Tag and byte-identical GitHub release $VERSION already exist; skipping safely."
+              ;;
+            fail)
+              echo "Release refused ($REASON): tag/release state is inconsistent with current source $GITHUB_SHA."
+              exit 1
+              ;;
+            create|complete|repair)
+              ;;
+            *)
+              echo "Release-state helper returned unknown action: $ACTION"
+              exit 1
+              ;;
+          esac
 
           printf 'tag_exists=%s\n' "$TAG_EXISTS" >> "$GITHUB_OUTPUT"
           printf 'release_exists=%s\n' "$RELEASE_EXISTS" >> "$GITHUB_OUTPUT"
-          printf 'skip=%s\n' "$SKIP_RELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Reconfirm current main before release mutation
+        if: steps.existing_release.outputs.action != 'skip'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          MAIN_COMMIT=$(git rev-parse FETCH_HEAD)
+          if [[ "$MAIN_COMMIT" != "$GITHUB_SHA" ]]; then
+            echo "Refusing release mutation for $GITHUB_SHA because origin/main advanced to $MAIN_COMMIT after inspection."
+            exit 1
+          fi
 
       - name: Create exact version tag
-        if: steps.existing_release.outputs.tag_exists == 'false'
+        if: steps.existing_release.outputs.action == 'create'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.verify.outputs.version }}
@@ -209,7 +211,7 @@ jobs:
             -f sha="$GITHUB_SHA" >/dev/null
 
       - name: Create release with verified assets
-        if: steps.existing_release.outputs.skip == 'false' && steps.existing_release.outputs.release_exists == 'false'
+        if: steps.existing_release.outputs.action == 'create' || steps.existing_release.outputs.action == 'complete'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.verify.outputs.version }}
@@ -224,28 +226,52 @@ jobs:
             --title "$VERSION" \
             --generate-notes
 
-      - name: Replace assets on incomplete release
-        if: steps.existing_release.outputs.skip == 'false' && steps.existing_release.outputs.release_exists == 'true'
+      - name: Repair incomplete release without replacing existing required assets
+        if: steps.existing_release.outputs.action == 'repair'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.verify.outputs.version }}
+          MISSING_ASSETS: ${{ steps.existing_release.outputs.missing_assets }}
+          UNEXPECTED_ASSET_IDS: ${{ steps.existing_release.outputs.unexpected_asset_ids }}
         shell: bash
         run: |
           set -euo pipefail
-          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$VERSION" \
-            --jq '.assets[].id' > asset-ids.txt
-          mapfile -t ASSET_IDS < asset-ids.txt
-          for asset_id in "${ASSET_IDS[@]}"; do
-            gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
+          if [[ -n "$MISSING_ASSETS" ]]; then
+            IFS=',' read -ra missing_assets <<< "$MISSING_ASSETS"
+            for asset in "${missing_assets[@]}"; do
+              case "$asset" in
+                main.js|manifest.json|styles.css)
+                  gh release upload "$VERSION" "release-assets/$asset"
+                  ;;
+                *)
+                  echo "Release-state helper returned an unknown missing asset: $asset"
+                  exit 1
+                  ;;
+              esac
+            done
+          fi
+
+          # Verify every required asset byte-for-byte before removing any extras.
+          rm -rf repaired-release
+          mkdir repaired-release
+          for asset in main.js manifest.json styles.css; do
+            gh release download "$VERSION" --pattern "$asset" --dir repaired-release
+            if ! cmp -s "release-assets/$asset" "repaired-release/$asset"; then
+              echo "Required release asset $asset does not match the verified build; preserving all existing assets."
+              exit 1
+            fi
           done
-          gh release upload "$VERSION" \
-            release-assets/main.js \
-            release-assets/manifest.json \
-            release-assets/styles.css \
-            --clobber
+
+          if [[ -n "$UNEXPECTED_ASSET_IDS" ]]; then
+            IFS=',' read -ra unexpected_asset_ids <<< "$UNEXPECTED_ASSET_IDS"
+            for asset_id in "${unexpected_asset_ids[@]}"; do
+              [[ "$asset_id" =~ ^[0-9]+$ ]] || { echo "Invalid unexpected asset ID: $asset_id"; exit 1; }
+              gh api --method DELETE "repos/$GITHUB_REPOSITORY/releases/assets/$asset_id"
+            done
+          fi
 
       - name: Verify final release asset set
-        if: steps.existing_release.outputs.skip == 'false'
+        if: steps.existing_release.outputs.action != 'skip'
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.verify.outputs.version }}
@@ -272,6 +298,15 @@ jobs:
             done
             if [[ "$MATCHED" != true ]]; then
               echo "Required release asset $required is missing or empty."
+              exit 1
+            fi
+          done
+          rm -rf final-release
+          mkdir final-release
+          gh release download "$VERSION" --dir final-release
+          for required in "${required_assets[@]}"; do
+            if ! cmp -s "release-assets/$required" "final-release/$required"; then
+              echo "Published release asset $required does not match the verified build."
               exit 1
             fi
           done

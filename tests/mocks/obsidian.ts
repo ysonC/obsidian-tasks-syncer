@@ -4,7 +4,7 @@ export class Plugin {}
 export class PluginSettingTab {}
 export class Setting {}
 export class ItemView {}
-export class Modal {}
-export class FuzzySuggestModal<T> { declare readonly __itemType: T; }
+export class Modal { open(): void {} }
+export class FuzzySuggestModal<T> { declare readonly __itemType: T; open(): void {} }
 export class TFile {}
 export const setIcon = () => undefined;

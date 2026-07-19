@@ -6,6 +6,11 @@ export default defineConfig({
 		environment: "node",
 		include: ["tests/**/*.test.ts"],
 		clearMocks: true,
+		coverage: {
+			provider: "v8",
+			include: ["src/**/*.ts"],
+			thresholds: { lines: 50, functions: 30, statements: 40, branches: 50 },
+		},
 	},
 	resolve: {
 		alias: {

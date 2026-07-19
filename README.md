@@ -2,6 +2,8 @@
 
 Task Syncer connects an Obsidian **desktop** vault to either Microsoft To Do or TickTick. Commands and the sidebar operate on one selected provider and remote list at a time.
 
+Task Syncer requires either a Microsoft account or a TickTick account, plus a user-created OAuth application for the selected provider.
+
 ## Installation
 
 Task Syncer requires Obsidian 1.11.4 or newer and is desktop-only.
@@ -67,7 +69,7 @@ Task Syncer is not a bidirectional file synchronizer:
 - Refresh and automatic refresh fetch the selected remote list into an in-memory, ID-based cache and sidebar. They do not edit Markdown.
 - **Push all tasks from note** reads top-level Markdown checkbox lines (`- [ ]` and `- [x]`) from the active note and creates or completes matching remote tasks. For this operation only, trimmed, whitespace-collapsed, case-insensitive titles prevent duplicate pushes. Remote tasks with duplicate titles are otherwise preserved by ID.
 - **Create and push task** creates one task unless a normalized title already exists.
-- **Organize tasks from all notes** scans local Markdown files and creates or replaces local `Tasks List.md`; it does not contact a provider.
+- **Organize tasks from all notes** scans local Markdown files and creates or updates a Task Syncer-managed section in local `Tasks List.md`; user-authored content outside the managed markers is preserved, and the command does not contact a provider.
 - Changes made in the sidebar are sent to the selected remote provider but are not written back to source notes.
 
 **Delete completed tasks** first fetches completed tasks and shows the provider, selected list, and count in a destructive confirmation dialog. Closing or cancelling the dialog performs no deletion. Confirming permanently deletes those completed remote tasks one at a time.
@@ -79,15 +81,16 @@ Task Syncer makes network requests only for the selected provider:
 - **Microsoft login:** `login.microsoftonline.com` is opened for OAuth authorization. The client ID, redirect URL, requested scopes, random state, authorization code, and client secret/token-exchange data are used to authenticate the configured app.
 - **Microsoft Graph:** `graph.microsoft.com/v1.0` receives the access token and list/task identifiers plus task titles, completion status, and due-date fields as needed to list, create, update, complete/reopen, or delete Microsoft To Do data.
 - **TickTick OAuth:** `ticktick.com/oauth/authorize` and `ticktick.com/oauth/token` receive the client ID, redirect URL, scopes, random state, authorization code, client credentials, and token-exchange data needed to authenticate.
-- **TickTick Open API:** `api.ticktick.com/open/v1` receives the access token and project/task identifiers plus titles, completion state, due dates, and configured time zone as needed to list, create, update, complete, rename lists, or delete TickTick data.
+- **TickTick Open API:** `api.ticktick.com/open/v1` receives the access token and project/task identifiers plus titles, completion state, due dates, and configured time zone as needed to list, create, update, complete, or delete TickTick data.
 
 OAuth authorization runs in an isolated Electron window and validates state and the configured redirect. Task Syncer has **no telemetry, analytics, advertising, or self-updater**. Updates are delivered through Obsidian Community Plugins or manually installed releases.
 
 ## Local data and secrets
 
 - OAuth client secrets and provider token caches are stored through Obsidian SecretStorage.
+- SecretStorage protection depends on an available and unlocked operating-system secret store. Obsidian displays a warning when secure storage is unavailable, which can occur on Linux systems without a configured keyring.
 - Normal configuration—including client IDs, SecretStorage reference IDs, redirect URLs, selected provider/list, display choices, refresh choices, and time zone—is stored in the plugin's `data.json`.
-- During upgrade, legacy plaintext credentials/token files are copied to SecretStorage and deleted only after exact read-back verification. If a different token already exists in SecretStorage, the legacy file is left in place rather than deleting unverified data.
+- During upgrade, legacy plaintext credentials/token files are copied to SecretStorage and deleted only after exact read-back verification. When a current SecretStorage value differs, Task Syncer keeps it unchanged, copies the legacy value to a deterministic `-legacy-conflict` SecretStorage entry, verifies both values, and then removes the plaintext source.
 - The plugin reads Markdown only for explicit note-push/organize commands and writes only `Tasks List.md` for the organize command.
 
 ## Troubleshooting
@@ -97,19 +100,19 @@ OAuth authorization runs in an isolated Electron window and validates state and 
 - **Session expired / 401:** disconnect if possible, then connect again. TickTick requires reconnection when its token expires.
 - **403:** verify Microsoft `Tasks.ReadWrite` consent or TickTick `tasks:read tasks:write` scopes.
 - **No lists or tasks:** connect, load lists, select a list, then refresh. Automatic refresh is skipped until a list is selected.
-- **Legacy token file remains after upgrade:** Task Syncer preserves it when an existing SecretStorage token cannot be proven identical. Confirm the account works before manually removing the old file from the plugin directory.
+- **Legacy migration conflict:** the current credential/token remains active. The differing legacy value is retained only in a SecretStorage entry whose ID ends in `-legacy-conflict` (older generic Microsoft caches use `-legacy-conflict-generic`); no secret value is included in the ID or logs.
 - **Mobile:** this plugin cannot run on mobile because OAuth uses Electron desktop APIs.
 
 ## Development
 
-Requirements: Node.js and npm.
+Requirements: Node.js 22 and npm.
 
 ```bash
 npm ci
 npm run lint
 npm test
 npm run build
-npm run check       # lint + tests + production build
+npm run check       # lint + tests + coverage + production build + release validation
 npm run test:watch
 ```
 

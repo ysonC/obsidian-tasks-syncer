@@ -27,6 +27,9 @@ jobs:
       - name: Lint, test, build, and validate release
         run: npm run check
 
+      - name: Audit all dependencies
+        run: npm audit
+
       - name: Audit production dependencies
         run: npm audit --omit=dev
 

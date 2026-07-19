@@ -3,6 +3,8 @@ export interface AutoSyncTimers {
 	clearInterval(id: number): void;
 }
 
+const ALLOWED_INTERVALS = new Set([0, 1, 5, 10, 15, 30, 60]);
+
 const browserTimers: AutoSyncTimers = {
 	setInterval: (callback, milliseconds) => window.setInterval(callback, milliseconds),
 	clearInterval: id => window.clearInterval(id),
@@ -26,7 +28,7 @@ export class AutoSyncController {
 
 	configure(intervalMinutes: number): void {
 		this.stop();
-		if (intervalMinutes <= 0) return;
+		if (!Number.isFinite(intervalMinutes) || !ALLOWED_INTERVALS.has(intervalMinutes) || intervalMinutes === 0) return;
 		this.intervalId = this.timers.setInterval(
 			() => { void this.run(); },
 			minutesToMilliseconds(intervalMinutes),

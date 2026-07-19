@@ -8,14 +8,28 @@ const SCOPES = ["Tasks.ReadWrite", "offline_access"];
 
 interface MicrosoftAuthDependencies {
 	client?: ConfidentialClientApplication;
-	authorize?: (authUrl: string, redirectUrl: string) => Promise<string>;
+	authorize?: OAuthAuthorize;
 	createState?: () => string;
+	signal?: AbortSignal;
+}
+
+export type OAuthAuthorize = (authUrl: string, redirectUrl: string, signal?: AbortSignal) => Promise<string>;
+
+function abortError(): Error {
+	const error = new Error("OAuth authorization was aborted.");
+	error.name = "AbortError";
+	return error;
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+	if (signal?.aborted) throw abortError();
 }
 
 export class MicrosoftAuthProvider implements AuthProvider {
 	private client: ConfidentialClientApplication;
-	private authorize: (authUrl: string, redirectUrl: string) => Promise<string>;
+	private authorize: OAuthAuthorize;
 	private createState: () => string;
+	private signal?: AbortSignal;
 	constructor(
 		private config: { clientId: string; clientSecret: string; redirectUrl: string },
 		private store: TokenStore,
@@ -26,19 +40,27 @@ export class MicrosoftAuthProvider implements AuthProvider {
 		this.client = dependencies.client || new ConfidentialClientApplication(msal);
 		this.authorize = dependencies.authorize || openOAuthWindow;
 		this.createState = dependencies.createState || (() => randomBytes(32).toString("hex"));
+		this.signal = dependencies.signal;
 	}
 	private async loadCache() { const data = await this.store.read(); if (data) this.client.getTokenCache().deserialize(data); }
 	private async saveCache() { await this.store.write(this.client.getTokenCache().serialize()); }
 	async login(): Promise<string> {
+		throwIfAborted(this.signal);
 		const state = this.createState();
 		const authUrl = await this.client.getAuthCodeUrl({ scopes: SCOPES, redirectUri: this.config.redirectUrl, prompt: "consent", state });
-		const callback = await this.authorize(authUrl, this.config.redirectUrl);
+		throwIfAborted(this.signal);
+		const callback = await this.authorize(authUrl, this.config.redirectUrl, this.signal);
+		throwIfAborted(this.signal);
+		if (!isExactRedirect(callback, this.config.redirectUrl)) throw new Error("Microsoft OAuth redirect did not exactly match the configured redirect URL.");
 		const callbackUrl = new URL(callback);
 		if (callbackUrl.searchParams.get("state") !== state) throw new Error("Microsoft OAuth state validation failed.");
 		const code = callbackUrl.searchParams.get("code"); if (!code) throw new Error("Microsoft login did not return an authorization code.");
 		const result = await this.client.acquireTokenByCode({ code, scopes: SCOPES, redirectUri: this.config.redirectUrl });
 		if (!result?.accessToken) throw new Error("Microsoft login returned no access token.");
-		await this.saveCache(); return result.accessToken;
+		throwIfAborted(this.signal);
+		await this.saveCache();
+		if (this.signal?.aborted) { await this.store.remove(); throw abortError(); }
+		return result.accessToken;
 	}
 	async getAccessToken(): Promise<string> {
 		await this.loadCache(); const accounts = await this.client.getTokenCache().getAllAccounts();
@@ -50,7 +72,8 @@ export class MicrosoftAuthProvider implements AuthProvider {
 	async isAuthenticated() { await this.loadCache(); return (await this.client.getTokenCache().getAllAccounts()).length > 0; }
 }
 
-export function openOAuthWindow(authUrl: string, redirectUrl: string): Promise<string> {
+export function openOAuthWindow(authUrl: string, redirectUrl: string, signal?: AbortSignal): Promise<string> {
+	if (signal?.aborted) return Promise.reject(abortError());
 	let configuredRedirect: URL;
 	try {
 		configuredRedirect = new URL(redirectUrl);
@@ -58,10 +81,22 @@ export function openOAuthWindow(authUrl: string, redirectUrl: string): Promise<s
 		return Promise.reject(new Error(`Invalid Microsoft OAuth redirect URL: ${redirectUrl}`));
 	}
 	return new Promise((resolve, reject) => {
-		const win = new BrowserWindow({ width: 600, height: 700, show: true, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, partition: `task-syncer-oauth-${Date.now()}` } });
+		const win = new BrowserWindow({ width: 600, height: 700, show: true, webPreferences: { nodeIntegration: false, contextIsolation: true, sandbox: true, partition: `task-syncer-oauth-${randomBytes(16).toString("hex")}` } });
 		let settled = false;
-		const finish = (error?: Error, url?: string) => { if (settled) return; settled = true; if (!win.isDestroyed()) win.close(); if (error) reject(error); else resolve(url!); };
-		const inspect = (event: any, url: string) => {
+		const cleanup = () => {
+			signal?.removeEventListener("abort", abort);
+			win.webContents.removeListener("will-redirect", inspect);
+			win.webContents.removeListener("will-navigate", inspect);
+			win.removeListener("closed", closed);
+		};
+		const finish = (error?: Error, url?: string) => {
+			if (settled) return;
+			settled = true;
+			cleanup();
+			if (!win.isDestroyed()) win.close();
+			if (error) reject(error); else resolve(url!);
+		};
+		const inspect = (event: { preventDefault(): void }, url: string) => {
 			try {
 				const parsed = new URL(url);
 				if (!isSameRedirect(parsed, configuredRedirect)) return;
@@ -72,8 +107,28 @@ export function openOAuthWindow(authUrl: string, redirectUrl: string): Promise<s
 				finish(error instanceof Error ? error : new Error(String(error)));
 			}
 		};
-		win.webContents.on("will-redirect", inspect); win.webContents.on("will-navigate", inspect); win.on("closed", () => finish(new Error("OAuth login window was closed."))); win.loadURL(authUrl).catch((e: Error) => finish(e));
+		const abort = () => finish(abortError());
+		const closed = () => finish(new Error("OAuth login window was closed."));
+		win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+		win.webContents.on("will-redirect", inspect);
+		win.webContents.on("will-navigate", inspect);
+		win.on("closed", closed);
+		signal?.addEventListener("abort", abort, { once: true });
+		if (signal?.aborted) { abort(); return; }
+		void win.loadURL(authUrl).catch((error: Error) => finish(error));
 	});
 }
-function isSameRedirect(callback: URL, configured: URL) { return callback.protocol === configured.protocol && callback.host === configured.host && callback.pathname === configured.pathname; }
+function isSameRedirect(callback: URL, configured: URL) {
+	if (callback.protocol !== configured.protocol || callback.host !== configured.host || callback.pathname !== configured.pathname) return false;
+	const oauthResponseParameters = new Set(["code", "state", "error", "error_description", "error_uri"]);
+	const fixedCallback = Array.from(callback.searchParams)
+		.filter(([key]) => !oauthResponseParameters.has(key))
+		.map(([key, value]) => `${key}\u0000${value}`)
+		.sort();
+	const fixedConfigured = Array.from(configured.searchParams)
+		.map(([key, value]) => `${key}\u0000${value}`)
+		.sort();
+	return fixedCallback.length === fixedConfigured.length
+		&& fixedCallback.every((entry, index) => entry === fixedConfigured[index]);
+}
 export function isExactRedirect(callback: string, configured: string) { return isSameRedirect(new URL(callback), new URL(configured)); }

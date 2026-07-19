@@ -5,7 +5,7 @@ export interface TaskList { id: string; title: string; }
 export interface TaskItem { id: string; listId: string; title: string; status: TaskStatus; dueDate?: string; }
 export interface TaskUpdate { title?: string; dueDate?: string; }
 export interface TaskInputResult { title: string; dueDate?: string; }
-export interface ProviderCapabilities { reopenTask: boolean; renameTaskList: boolean; }
+export interface ProviderCapabilities { reopenTask: boolean; }
 export interface TaskCache { provider: ProviderId; listId: string; tasks: TaskItem[]; }
 
 export interface TaskService {
@@ -17,5 +17,4 @@ export interface TaskService {
 	completeTask(listId: string, taskId: string): Promise<void>;
 	reopenTask?(listId: string, taskId: string): Promise<void>;
 	deleteTask(listId: string, taskId: string): Promise<void>;
-	renameTaskList?(listId: string, title: string): Promise<void>;
 }

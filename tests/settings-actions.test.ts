@@ -29,4 +29,15 @@ describe("settings actions", () => {
 		expect(effects.logout).not.toHaveBeenCalled();
 		expect(effects.rebuild).toHaveBeenCalledOnce();
 	});
+
+	it("rejects an invalid timezone before changing or saving settings", async () => {
+		const settings = migrateSettings(undefined);
+		const original = settings.timeZone;
+		const effects = actions();
+		await expect(changeTimeZone(settings, "Not/AZone", effects)).rejects.toThrow(/time zone/i);
+		expect(settings.timeZone).toBe(original);
+		expect(effects.rebuild).not.toHaveBeenCalled();
+		expect(effects.save).not.toHaveBeenCalled();
+		expect(effects.refresh).not.toHaveBeenCalled();
+	});
 });

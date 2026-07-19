@@ -2,6 +2,32 @@
 
 All notable user-facing changes to Task Syncer are documented here.
 
+## [2.1.2] - 2026-07-18
+
+### Fixed
+
+- Prevented stale refreshes from replacing tasks after switching providers or lists.
+- Added complete Microsoft Graph pagination with same-origin next-link validation.
+- Refused ambiguous title-based mutations when duplicate remote task titles exist.
+- Preserved timed due dates during title-only edits and rejected blank task titles.
+- Updated only a managed section in `Tasks List.md`, preserving user-authored content.
+- Made calendar-day labels respect the configured time zone.
+- Validated persisted settings and rejected invalid automatic-refresh intervals.
+
+### Changed
+
+- Added Obsidian's official plugin lint rules, comprehensive coverage checks, and a private npm package declaration.
+- Modernized the test toolchain and removed known dependency advisories.
+- Improved sidebar accessibility, theme compatibility, and settings UI wording.
+- Clarified required provider accounts and SecretStorage operating-system limitations.
+
+### Security
+
+- Cancelled OAuth sessions on plugin unload, denied popup windows, isolated browser sessions, and enforced exact callback/query matching at the provider boundary.
+- Quarantined conflicting legacy plaintext credentials in verified SecretStorage entries before removing plaintext sources.
+- Prevented delayed or overlapping operations from mutating tasks after provider or list changes.
+- Made release recovery fail closed on tag, source-SHA, or asset-digest mismatches and non-destructive when repairing missing assets.
+
 ## [2.1.1] - 2026-07-17
 
 ### Changed
@@ -34,3 +60,4 @@ All notable user-facing changes to Task Syncer are documented here.
 
 [2.1.0]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.0
 [2.1.1]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.1
+[2.1.2]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.2

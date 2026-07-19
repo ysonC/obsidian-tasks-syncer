@@ -25,15 +25,15 @@ describe("TickTickTaskService", () => {
 		});
 	});
 
-	it("creates, updates, completes, deletes, and renames with TickTick date/timezone payloads", async () => {
+	it("creates, updates, completes, and deletes with TickTick date/timezone payloads", async () => {
 		const request = vi.fn().mockResolvedValue(response(200, { id: "t", projectId: "p", title: "T", status: 0 }));
 		const service = new TickTickTaskService(async () => "token", request, "Europe/London");
 		await service.createTask("p", { title: "T", dueDate: "2026-07-17T00:00:00" });
 		await service.updateTask("p", "t", { title: "T2", dueDate: "2026-07-18T00:00:00" });
-		await service.completeTask("p", "t"); await service.deleteTask("p", "t"); await service.renameTaskList!("p", "Work");
+		await service.completeTask("p", "t"); await service.deleteTask("p", "t");
 		expect(JSON.parse(request.mock.calls[0][0].body)).toMatchObject({ projectId: "p", title: "T", dueDate: "2026-07-17T00:00:00+0000", timeZone: "Europe/London", isAllDay: true });
 		expect(request.mock.calls.slice(2).map(c => [c[0].method, c[0].url])).toEqual([
-			["POST", "https://api.ticktick.com/open/v1/project/p/task/t/complete"], ["DELETE", "https://api.ticktick.com/open/v1/project/p/task/t"], ["POST", "https://api.ticktick.com/open/v1/project/p"]
+			["POST", "https://api.ticktick.com/open/v1/project/p/task/t/complete"], ["DELETE", "https://api.ticktick.com/open/v1/project/p/task/t"]
 		]);
 		expect(formatTickTickDate("2026-07-17")).toBe("2026-07-17T00:00:00+0000");
 		expect(service.capabilities.reopenTask).toBe(false);

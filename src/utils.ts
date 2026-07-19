@@ -1,6 +1,11 @@
 import confetti from "canvas-confetti";
 import { Notice } from "obsidian";
 
+function launchConfetti(options: confetti.Options): void {
+	const animation = confetti(options);
+	if (animation) void animation.catch(() => undefined);
+}
+
 /**
  * Display a notification in Obsidian with optional type-based prefix.
  * @param message - Message to show
@@ -58,7 +63,7 @@ export function regularConfetti(
 
 	// helper to fire one of your bursts
 	const fire = (particleRatio: number, opts: confetti.Options) => {
-		confetti({
+		launchConfetti({
 			...defaults,
 			...opts,
 			particleCount: Math.floor(count * particleRatio),
@@ -87,14 +92,14 @@ export function playBIGConfetti(durationMs: number = 3_000) {
 	const spread: number = 70;
 	(function frame() {
 		// left side burst
-		confetti({
+		launchConfetti({
 			particleCount: countPerSide,
 			angle: 60,
 			spread,
 			origin: { x: 0 },
 		});
 		// right side burst
-		confetti({
+		launchConfetti({
 			particleCount: countPerSide,
 			angle: 120,
 			spread,
@@ -102,7 +107,7 @@ export function playBIGConfetti(durationMs: number = 3_000) {
 		});
 
 		if (Date.now() < end) {
-			requestAnimationFrame(frame);
+			window.requestAnimationFrame(frame);
 		}
 	})();
 }
