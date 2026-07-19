@@ -39,7 +39,7 @@ export class TaskSidebarView extends ItemView {
 	private setupNavHeader(): void {
 		const buttons = this.contentContainer.createDiv("task-syncer-nav");
 		const refresh = buttons.createEl("button", {
-			cls: "task-syncer-nav-button",
+			cls: "clickable-icon",
 			type: "button",
 		});
 		setIcon(refresh, "refresh-cw");
@@ -69,7 +69,7 @@ export class TaskSidebarView extends ItemView {
 		title: string,
 	): void {
 		const button = parent.createEl("button", {
-			cls: "task-syncer-nav-button",
+			cls: "clickable-icon",
 			type: "button",
 		});
 		button.title = title;

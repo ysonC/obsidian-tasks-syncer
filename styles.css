@@ -19,31 +19,20 @@
 	gap: var(--size-2-1);
 }
 
-.task-syncer-nav-button {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	width: 32px;
-	height: 24px;
-	color: var(--text-normal);
-	background: transparent;
-	border: 0;
-	border-radius: var(--radius-s);
-}
-
-.task-syncer-nav-button:hover,
-.task-syncer-nav-button:focus-visible {
-	background-color: var(--background-modifier-hover);
-}
-
 .task-syncer-due-date {
 	font-size: var(--font-ui-smaller);
 	color: var(--text-muted);
 }
 
-.task-syncer-due-date-now { color: var(--color-orange); }
-.task-syncer-due-date-tomorrow { color: var(--color-yellow); }
-.task-syncer-due-date-past { color: var(--text-error); }
+.task-syncer-due-date-now {
+	color: var(--color-orange);
+}
+.task-syncer-due-date-tomorrow {
+	color: var(--color-yellow);
+}
+.task-syncer-due-date-past {
+	color: var(--text-error);
+}
 
 .task-syncer-spinner-wrapper,
 .task-syncer-modal {
@@ -90,5 +79,7 @@
 }
 
 @keyframes task-syncer-spin {
-	to { transform: rotate(360deg); }
+	to {
+		transform: rotate(360deg);
+	}
 }
