@@ -1,8 +1,12 @@
-# Task Syncer for Obsidian
+# Obsidian Task Syncer (Task Syncer)
 
-Task Syncer connects an Obsidian **desktop** vault to either Microsoft To Do or TickTick. Commands and the sidebar operate on one selected provider and remote list at a time.
+This repository contains **Task Syncer**, an Obsidian **desktop-only** plugin that syncs tasks with Microsoft To Do or TickTick. Commands and the sidebar operate on one selected provider and remote list at a time.
 
 Task Syncer requires either a Microsoft account or a TickTick account, plus a user-created OAuth application for the selected provider.
+
+## AI assistance disclosure
+
+This project is built and maintained with help from AI tooling (including GitHub Copilot) alongside human review and decision-making.
 
 ## Installation
 
