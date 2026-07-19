@@ -10,6 +10,22 @@ export function buildTaskInputResult(title: string, date: string, editing: boole
 	return result;
 }
 
+export function submitTaskFormOnEnter(event: KeyboardEvent, form: HTMLFormElement, submitter: HTMLButtonElement): void {
+	if (event.key !== "Enter" || event.isComposing) return;
+	event.preventDefault();
+	event.stopPropagation();
+	form.requestSubmit(submitter);
+}
+
+export function openNativeDatePicker(input: HTMLInputElement): void {
+	try {
+		input.showPicker?.();
+	} catch {
+		// Some platforms only allow showPicker() during specific user-activation
+		// paths. Keep the normal date input usable when the native picker refuses.
+	}
+}
+
 export class TaskTitleModal extends Modal {
 	private readonly initial?: TaskInputResult;
 	constructor(
@@ -31,6 +47,10 @@ export class TaskTitleModal extends Modal {
 		const actions = form.createDiv({ cls: "task-syncer-modal-actions" });
 		const cancel = actions.createEl("button", { text: "Cancel", type: "button" });
 		const save = actions.createEl("button", { text: "Save", type: "submit", cls: "mod-cta" });
+		inputEl.addEventListener("keydown", event => submitTaskFormOnEnter(event, form, save));
+		dueInput.addEventListener("keydown", event => submitTaskFormOnEnter(event, form, save));
+		dueInput.addEventListener("focus", () => openNativeDatePicker(dueInput));
+		dueInput.addEventListener("click", () => openNativeDatePicker(dueInput));
 		cancel.addEventListener("click", () => this.close());
 		form.addEventListener("submit", event => {
 			event.preventDefault();
