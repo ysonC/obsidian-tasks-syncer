@@ -63,11 +63,24 @@ export class TaskSyncerSettingTab extends PluginSettingTab {
 		super(app, plugin);
 	}
 
+	private refreshSettings(): void {
+		const compatibleTab = this as unknown as {
+			update?: () => void;
+		};
+
+		if (typeof compatibleTab.update === "function") {
+			compatibleTab.update.call(this);
+			return;
+		}
+
+		this.renderLegacySettings();
+	}
+
 	/**
 	 * Obsidian 1.13.0+ uses these declarative definitions.
 	 */
 	getSettingDefinitions(): SettingDefinitionItem[] {
-		const groups = this.buildSettingGroups(() => this.update());
+		const groups = this.buildSettingGroups(() => this.refreshSettings());
 
 		return groups.map((group) => this.toDeclarativeGroup(group));
 	}
@@ -154,9 +167,7 @@ export class TaskSyncerSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 		containerEl.empty();
 
-		const groups = this.buildSettingGroups(() =>
-			this.renderLegacySettings(),
-		);
+		const groups = this.buildSettingGroups(() => this.refreshSettings());
 
 		for (const group of groups) {
 			new Setting(containerEl).setName(group.heading).setHeading();
@@ -549,12 +560,12 @@ export class TaskSyncerSettingTab extends PluginSettingTab {
 	 * legacy warning class is used as a runtime fallback.
 	 */
 	private setDestructiveCompat(button: ButtonComponent): void {
-		const compatibleButton: {
+		const compatibleButton = button as unknown as {
 			setDestructive?: () => ButtonComponent;
-		} = button;
+		};
 
-		if (compatibleButton.setDestructive !== undefined) {
-			compatibleButton.setDestructive();
+		if (typeof compatibleButton.setDestructive === "function") {
+			compatibleButton.setDestructive.call(button);
 			return;
 		}
 
