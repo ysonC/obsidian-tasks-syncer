@@ -2,6 +2,19 @@
 
 All notable user-facing changes to Task Syncer are documented here.
 
+## [2.1.4] - 2026-07-24
+
+### Fixed
+
+- Improved task create/edit modal keyboard controls so Enter submits text and date fields while preserving IME composition behavior.
+- Handled empty provider task-update responses without treating successful updates as JSON parse failures.
+- Regenerated the npm lockfile for npm 10 `npm ci` compatibility.
+
+### Changed
+
+- Release publishing now runs only for explicit version-bump release PRs instead of every normal main-branch merge.
+- Added the repository AI assistance disclosure to the README.
+
 ## [2.1.2] - 2026-07-18
 
 ### Fixed
@@ -61,3 +74,5 @@ All notable user-facing changes to Task Syncer are documented here.
 [2.1.0]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.0
 [2.1.1]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.1
 [2.1.2]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.2
+[2.1.3]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.3
+[2.1.4]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.4
