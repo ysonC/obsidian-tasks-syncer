@@ -1,7 +1,6 @@
 import {
 	App,
 	PluginSettingTab,
-	SecretComponent,
 	Setting,
 	type ButtonComponent,
 	type SettingDefinitionGroup,
@@ -222,7 +221,7 @@ export class TaskSyncerSettingTab extends PluginSettingTab {
 
 		return {
 			name: `${providerName} OAuth credentials`,
-			desc: "Client secrets are referenced through Obsidian SecretStorage and are not saved in the plugin data file.",
+			desc: "Enter the Obsidian SecretStorage ID that contains this provider's client secret. Internal token-cache secrets are managed automatically and should not be selected here.",
 			aliases: ["Client ID", "Client secret", "OAuth", "SecretStorage"],
 			render: (setting) => {
 				setting.addText((text) =>
@@ -239,14 +238,15 @@ export class TaskSyncerSettingTab extends PluginSettingTab {
 						}),
 				);
 
-				setting.addComponent((element) =>
-					new SecretComponent(this.app, element)
+				setting.addText((text) =>
+					text
+						.setPlaceholder(`task-syncer-plugin-${provider}-client-secret`)
 						.setValue(config.clientSecretId)
 						.onChange((value) => {
 							this.execute("Credential update failed", () =>
 								this.plugin.updateProviderCredential(
 									"clientSecretId",
-									value,
+									value.trim(),
 								),
 							);
 						}),

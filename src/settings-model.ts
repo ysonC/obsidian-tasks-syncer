@@ -3,6 +3,11 @@ import { ProviderId, TaskList } from "./types";
 export const clientSecretId = (provider: ProviderId): string => `task-syncer-plugin-${provider}-client-secret`;
 export const tokenCacheSecretId = (provider: ProviderId): string => `task-syncer-plugin-${provider}-token-cache`;
 export const AUTO_SYNC_INTERVALS = [0, 1, 5, 10, 15, 30, 60] as const;
+export function isClientSecretReferenceId(value: string): boolean {
+	return /^[a-z0-9-]+$/.test(value)
+		&& !value.endsWith("-token-cache")
+		&& !value.includes("-legacy-conflict");
+}
 
 export interface ProviderSettings {
 	clientId: string; clientSecretId: string; redirectUrl: string;
@@ -51,8 +56,8 @@ function cleanProvider(value: unknown, defaults: ProviderSettings): ProviderSett
 	const raw = isRecord(value) ? value : {};
 	return {
 		clientId: stringValue(raw.clientId, defaults.clientId),
-		// Secret references remain stable; arbitrary persisted IDs are accepted only when syntactically valid.
-		clientSecretId: typeof raw.clientSecretId === "string" && /^[a-z0-9-]+$/.test(raw.clientSecretId) ? raw.clientSecretId : defaults.clientSecretId,
+		// Secret references remain stable; arbitrary persisted IDs are accepted only when syntactically valid and user-facing.
+		clientSecretId: typeof raw.clientSecretId === "string" && isClientSecretReferenceId(raw.clientSecretId) ? raw.clientSecretId : defaults.clientSecretId,
 		redirectUrl: stringValue(raw.redirectUrl, defaults.redirectUrl),
 		selectedListId: stringValue(raw.selectedListId, defaults.selectedListId),
 		selectedListTitle: stringValue(raw.selectedListTitle, defaults.selectedListTitle),

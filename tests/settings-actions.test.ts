@@ -21,6 +21,15 @@ describe("settings actions", () => {
 		expect(effects.refresh).toHaveBeenCalledOnce();
 	});
 
+	it.each(["task-syncer-plugin-microsoft-token-cache", "task-syncer-plugin-microsoft-client-secret-legacy-conflict", "MixedCase"])("rejects invalid client secret reference %s before logout", async id => {
+		const settings = migrateSettings(undefined);
+		const effects = actions();
+		await expect(changeProviderCredential(settings, "clientSecretId", id, effects)).rejects.toThrow(/client secret reference/i);
+		expect(settings.providers.microsoft.clientSecretId).toBe("task-syncer-plugin-microsoft-client-secret");
+		expect(effects.logout).not.toHaveBeenCalled();
+		expect(effects.save).not.toHaveBeenCalled();
+	});
+
 	it("rebuilds for a timezone change without logging out", async () => {
 		const settings = migrateSettings(undefined);
 		const effects = actions();

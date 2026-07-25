@@ -1,4 +1,4 @@
-import { TaskSyncerSettings } from "./settings-model";
+import { isClientSecretReferenceId, TaskSyncerSettings } from "./settings-model";
 
 type CredentialKey = "clientId" | "clientSecretId" | "redirectUrl";
 
@@ -16,6 +16,9 @@ export async function changeProviderCredential(
 	value: string,
 	effects: SettingsEffects,
 ): Promise<void> {
+	if (key === "clientSecretId" && !isClientSecretReferenceId(value)) {
+		throw new Error("Client secret reference must be a SecretStorage ID with lowercase letters, digits, and dashes, and cannot be an internal token-cache or legacy-conflict ID.");
+	}
 	await effects.logout();
 	settings.providers[settings.provider][key] = value;
 	await effects.rebuild();
