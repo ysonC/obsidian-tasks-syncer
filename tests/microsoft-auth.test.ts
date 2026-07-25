@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import { BrowserWindow } from "@electron/remote";
-import { isExactRedirect, MicrosoftAuthProvider, openOAuthWindow } from "../src/auth/microsoft";
+import { requestUrl } from "obsidian";
+import { isExactRedirect, MicrosoftAuthProvider, ObsidianMsalNetworkClient, openOAuthWindow } from "../src/auth/microsoft";
 
 vi.mock("@electron/remote", () => ({ BrowserWindow: vi.fn() }));
+vi.mock("obsidian", () => ({ requestUrl: vi.fn() }));
 
 class MemoryStore {
 	value = "";
@@ -40,6 +42,40 @@ function deferred<T>() {
 }
 
 describe("Microsoft OAuth state", () => {
+	it("redeems MSAL network requests through Obsidian requestUrl without browser origin", async () => {
+		vi.mocked(requestUrl).mockResolvedValueOnce({
+			status: 200,
+			headers: { "content-type": "application/json" },
+			arrayBuffer: new ArrayBuffer(0),
+			json: { access_token: "access" },
+			text: '{"access_token":"access"}',
+		});
+		const client = new ObsidianMsalNetworkClient();
+
+		await expect(client.sendPostRequestAsync<{ access_token: string }>(
+			"https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
+			{
+				body: "grant_type=authorization_code&code=code",
+				headers: {
+					Origin: "app://obsidian.md",
+					"Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
+				},
+			},
+		)).resolves.toEqual({
+			status: 200,
+			headers: { "content-type": "application/json" },
+			body: { access_token: "access" },
+		});
+		expect(requestUrl).toHaveBeenCalledWith({
+			url: "https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
+			method: "POST",
+			headers: { "Content-Type": "application/x-www-form-urlencoded;charset=utf-8" },
+			contentType: "application/x-www-form-urlencoded;charset=utf-8",
+			body: "grant_type=authorization_code&code=code",
+			throw: false,
+		});
+	});
+
 	it("requires configured redirect query parameters to match", () => {
 		expect(isExactRedirect("http://localhost:5000/callback?tenant=other&code=x", "http://localhost:5000/callback?tenant=personal")).toBe(false);
 		expect(isExactRedirect("http://localhost:5000/callback?tenant=personal&code=x", "http://localhost:5000/callback?tenant=personal")).toBe(true);

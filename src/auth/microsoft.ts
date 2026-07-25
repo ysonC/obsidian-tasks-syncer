@@ -1,5 +1,6 @@
-import { ConfidentialClientApplication, Configuration } from "@azure/msal-node";
+import { ConfidentialClientApplication, Configuration, type INetworkModule, type NetworkRequestOptions, type NetworkResponse } from "@azure/msal-node";
 import { BrowserWindow } from "@electron/remote";
+import { requestUrl } from "obsidian";
 import { randomBytes } from "crypto";
 import { AuthProvider, TokenStore, requireCredentials } from "./index";
 
@@ -36,7 +37,10 @@ export class MicrosoftAuthProvider implements AuthProvider {
 		dependencies: MicrosoftAuthDependencies = {},
 	) {
 		requireCredentials(config.clientId, config.clientSecret, config.redirectUrl);
-		const msal: Configuration = { auth: { clientId: config.clientId, clientSecret: config.clientSecret, authority: AUTHORITY } };
+		const msal: Configuration = {
+			auth: { clientId: config.clientId, clientSecret: config.clientSecret, authority: AUTHORITY },
+			system: { networkClient: new ObsidianMsalNetworkClient() },
+		};
 		this.client = dependencies.client || new ConfidentialClientApplication(msal);
 		this.authorize = dependencies.authorize || openOAuthWindow;
 		this.createState = dependencies.createState || (() => randomBytes(32).toString("hex"));
@@ -70,6 +74,32 @@ export class MicrosoftAuthProvider implements AuthProvider {
 	}
 	async logout() { const cache = this.client.getTokenCache(); for (const account of await cache.getAllAccounts()) await cache.removeAccount(account); await this.store.remove(); }
 	async isAuthenticated() { await this.loadCache(); return (await this.client.getTokenCache().getAllAccounts()).length > 0; }
+}
+
+export class ObsidianMsalNetworkClient implements INetworkModule {
+	async sendGetRequestAsync<T>(url: string, options?: NetworkRequestOptions): Promise<NetworkResponse<T>> {
+		return this.send<T>("GET", url, options);
+	}
+	async sendPostRequestAsync<T>(url: string, options?: NetworkRequestOptions): Promise<NetworkResponse<T>> {
+		return this.send<T>("POST", url, options);
+	}
+	private async send<T>(method: string, url: string, options?: NetworkRequestOptions): Promise<NetworkResponse<T>> {
+		const headers = { ...(options?.headers ?? {}) };
+		delete headers.Origin;
+		delete headers.origin;
+		const contentType = headers["Content-Type"] ?? headers["content-type"];
+		const response = await requestUrl({ url, method, headers, contentType, body: options?.body, throw: false });
+		const text = response.text;
+		let body: unknown = text;
+		if (text.trim()) {
+			try {
+				body = JSON.parse(text);
+			} catch {
+				body = text;
+			}
+		}
+		return { headers: response.headers, body: body as T, status: response.status };
+	}
 }
 
 export function openOAuthWindow(authUrl: string, redirectUrl: string, signal?: AbortSignal): Promise<string> {
