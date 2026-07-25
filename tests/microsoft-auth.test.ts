@@ -44,6 +44,7 @@ describe("Microsoft OAuth state", () => {
 		expect(isExactRedirect("http://localhost:5000/callback?tenant=other&code=x", "http://localhost:5000/callback?tenant=personal")).toBe(false);
 		expect(isExactRedirect("http://localhost:5000/callback?tenant=personal&code=x", "http://localhost:5000/callback?tenant=personal")).toBe(true);
 		expect(isExactRedirect("http://localhost:5000/callback?tenant=personal&extra=value&code=x&state=s", "http://localhost:5000/callback?tenant=personal")).toBe(false);
+		expect(isExactRedirect("http://localhost:5000/callback?tenant=personal&code=x&state=s&client_info=abc&clientdata=m%7C%7C%7Cmicrosoftonline.com%7Cnone", "http://localhost:5000/callback?tenant=personal")).toBe(true);
 		expect(isExactRedirect("http://localhost:5000/callback?tenant=personal&code=x&state=s&error_description=nope", "http://localhost:5000/callback?tenant=personal")).toBe(true);
 		expect(isExactRedirect("http://localhost:5000/callback?tenant=personal&code=x", "http://localhost:5000/callback?tenant=personal&tenant=personal")).toBe(false);
 	});
