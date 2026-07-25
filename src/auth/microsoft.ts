@@ -120,7 +120,7 @@ export function openOAuthWindow(authUrl: string, redirectUrl: string, signal?: A
 }
 function isSameRedirect(callback: URL, configured: URL) {
 	if (callback.protocol !== configured.protocol || callback.host !== configured.host || callback.pathname !== configured.pathname) return false;
-	const oauthResponseParameters = new Set(["code", "state", "error", "error_description", "error_uri"]);
+	const oauthResponseParameters = new Set(["code", "state", "error", "error_description", "error_uri", "client_info", "clientdata"]);
 	const fixedCallback = Array.from(callback.searchParams)
 		.filter(([key]) => !oauthResponseParameters.has(key))
 		.map(([key, value]) => `${key}\u0000${value}`)
