@@ -44,7 +44,7 @@ describe("settings migration", () => {
 			version: 3, provider: "ticktick", unknown: "discard me", clientSecret: "top-secret",
 			showCompleted: "yes", autoSyncIntervalMinutes: 0.001, timeZone: "Not/AZone",
 			providers: {
-				microsoft: { clientSecret: "nested-secret", taskLists: { id: "bad" } },
+				microsoft: { clientSecret: "nested-secret", clientSecretId: "task-syncer-plugin-microsoft-token-cache", taskLists: { id: "bad" } },
 				ticktick: { clientId: "id", taskLists: [{ id: "ok", title: "Inbox", token: "bad" }, null, { id: 2, title: "bad" }] },
 			},
 		});
@@ -53,6 +53,7 @@ describe("settings migration", () => {
 		expect(JSON.stringify(migrated)).not.toContain("nested-secret");
 		expect(migrated.showCompleted).toBe(true);
 		expect(migrated.autoSyncIntervalMinutes).toBe(10);
+		expect(migrated.providers.microsoft.clientSecretId).toBe("task-syncer-plugin-microsoft-client-secret");
 		expect(migrated.providers.ticktick.taskLists).toEqual([{ id: "ok", title: "Inbox" }]);
 		expect(migrated.timeZone).not.toBe("Not/AZone");
 	});
