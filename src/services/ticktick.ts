@@ -1,3 +1,4 @@
+import { calendarDateInTimeZone } from "../date-only";
 import { HttpClient, HttpRequest, HttpResponse } from "../http";
 import { TaskItem, TaskList, TaskService, TaskUpdate } from "../types";
 
@@ -5,11 +6,51 @@ const BASE = "https://api.ticktick.com/open/v1";
 type UnknownRecord = Record<string, unknown>;
 const isRecord = (value: unknown): value is UnknownRecord => typeof value === "object" && value !== null && !Array.isArray(value);
 
-export function formatTickTickDate(value: string): string {
+function pad(value: number): string { return String(value).padStart(2, "0"); }
+
+function formatUtcDate(date: Date): string {
+	return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(date.getUTCSeconds())}+0000`;
+}
+
+function timeZoneOffsetMilliseconds(date: Date, timeZone: string): number {
+	const parts = new Intl.DateTimeFormat("en-US", {
+		timeZone,
+		year: "numeric", month: "2-digit", day: "2-digit",
+		hour: "2-digit", minute: "2-digit", second: "2-digit",
+		hour12: false,
+	}).formatToParts(date);
+	const values = Object.fromEntries(parts.filter(part => part.type !== "literal").map(part => [part.type, Number(part.value)]));
+	const hour = values.hour === 24 ? 0 : values.hour;
+	return Date.UTC(values.year, values.month - 1, values.day, hour, values.minute, values.second) - date.getTime();
+}
+
+function localDateTimeToUtc(value: string, timeZone: string): Date {
+	const match = /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(value);
+	if (!match) return new Date(value);
+	const [, year, month, day, hour = "00", minute = "00", second = "00"] = match;
+	const wallClockTimestamp = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+	let timestamp = wallClockTimestamp;
+	for (let attempt = 0; attempt < 2; attempt++) {
+		timestamp = wallClockTimestamp - timeZoneOffsetMilliseconds(new Date(timestamp), timeZone);
+	}
+	return new Date(timestamp);
+}
+
+function parseTickTickInstant(value: string): Date {
+	return new Date(value.replace(/Z$/, "+0000").replace(/([+-]\d{2})(\d{2})$/, "$1:$2"));
+}
+
+function normalizeTickTickDueDate(value: string, timeZone: string): string {
+	const instant = parseTickTickInstant(value);
+	if (Number.isNaN(instant.getTime())) return value;
+	return calendarDateInTimeZone(instant, timeZone || "UTC");
+}
+
+export function formatTickTickDate(value: string, timeZone = "UTC"): string {
 	const date = value.trim();
-	if (/^\d{4}-\d{2}-\d{2}$/.test(date)) return `${date}T00:00:00+0000`;
 	const noZone = date.replace(/Z$/, "+0000").replace(/([+-]\d{2}):(\d{2})$/, "$1$2");
-	return /[+-]\d{4}$/.test(noZone) ? noZone : `${noZone}+0000`;
+	if (/[+-]\d{4}$/.test(noZone)) return noZone;
+	return formatUtcDate(localDateTimeToUtc(date, timeZone || "UTC"));
 }
 
 export class TickTickTaskService implements TaskService {
@@ -49,12 +90,15 @@ export class TickTickTaskService implements TaskService {
 		const id = typeof value.id === "string" || typeof value.id === "number" ? String(value.id) : "";
 		const title = typeof value.title === "string" ? value.title.trim() : "";
 		if (!id || !title) throw new Error("TickTick task response is missing an ID or title.");
+		const dueDate = typeof value.dueDate === "string"
+			? normalizeTickTickDueDate(value.dueDate, typeof value.timeZone === "string" ? value.timeZone : this.timeZone)
+			: undefined;
 		return {
 			id,
 			listId: typeof value.projectId === "string" ? value.projectId : fallbackListId,
 			title,
 			status: Number(value.status) === 2 ? "completed" : "open",
-			...(typeof value.dueDate === "string" ? { dueDate: value.dueDate } : {}),
+			...(dueDate ? { dueDate } : {}),
 		};
 	}
 
@@ -90,7 +134,7 @@ export class TickTickTaskService implements TaskService {
 		const body: UnknownRecord = { projectId: listId };
 		if (task.title !== undefined) body.title = task.title;
 		if (task.dueDate !== undefined) {
-			body.dueDate = task.dueDate ? formatTickTickDate(task.dueDate) : null;
+			body.dueDate = task.dueDate ? formatTickTickDate(task.dueDate, this.timeZone || "UTC") : null;
 			if (task.dueDate) { body.timeZone = this.timeZone || "UTC"; body.isAllDay = true; }
 		}
 		return body;
