@@ -1,6 +1,7 @@
 import { requestUrl } from "obsidian";
 import { AuthProvider } from "./auth";
-import { MicrosoftAuthProvider, openOAuthWindow } from "./auth/microsoft";
+import { MicrosoftAuthProvider } from "./auth/microsoft";
+import { openOAuthWindow } from "./auth/oauth";
 import { TickTickAuthProvider } from "./auth/ticktick";
 import { HttpClient } from "./http";
 import { TaskSyncerSettings, tokenCacheSecretId } from "./settings-model";

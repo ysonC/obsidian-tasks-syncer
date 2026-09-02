@@ -1,6 +1,6 @@
 import { randomBytes } from "crypto";
 import { AuthProvider, TokenStore, requireCredentials } from "./index";
-import { isExactRedirect, type OAuthAuthorize } from "./microsoft";
+import { isExactRedirect, type OAuthAuthorize } from "./oauth";
 import { HttpClient } from "../http";
 
 const AUTHORIZE_URL = "https://ticktick.com/oauth/authorize";
