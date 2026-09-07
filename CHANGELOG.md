@@ -2,6 +2,18 @@
 
 All notable user-facing changes to Task Syncer are documented here.
 
+## [2.1.7] - 2026-09-07
+
+### Fixed
+
+- Added a settings flow to save Microsoft and TickTick OAuth client secrets into Obsidian SecretStorage without exposing internal secret key names.
+- Kept OAuth provider popup navigation inside the authorization flow and captured loopback callbacks even when a provider opens the system browser.
+- Simplified OAuth credential settings layout so client ID, client secret, and redirect URL remain readable.
+
+### Changed
+
+- Moved shared OAuth browser/callback handling into a provider-neutral helper so Microsoft and TickTick no longer depend on Microsoft-specific auth code for shared login behavior.
+
 ## [2.1.4] - 2026-07-24
 
 ### Fixed
@@ -76,3 +88,4 @@ All notable user-facing changes to Task Syncer are documented here.
 [2.1.2]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.2
 [2.1.3]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.3
 [2.1.4]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.4
+[2.1.7]: https://github.com/ysonC/obsidian-tasks-syncer/releases/tag/2.1.7
